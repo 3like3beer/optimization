@@ -128,6 +128,63 @@ using {
          row[r] = v;
 }
 
+range R = 1..8;
+var{int} row[R] in R;
+solve {
+   forall(i in R,j in R: i < j) {
+      row[i] ≠  row[j];
+      row[i] ≠  row[j] + (j - i);
+      row[i] ≠  row[j] - (j - i);
+   }
+}
+using {
+   forall(r in R) by row[r].getSize()
+      tryall(v in R)
+         row[r] = v;
+}
+#select first the variable with the smallest domain
+
+#Dynamic orderings for variable and value choices
+range R = 1..8;
+range C = 1..8;
+var{int} row[C] in R;
+var{int} col[R] in C
+solve {
+   forall(i in R,j in R: i < j) {
+      row[i] ≠  row[j];
+      row[i] ≠  row[j] + (j - i);
+      row[i] ≠  row[j] - (j - i);
+   }
+   forall(i in C,j in C: i < j) {
+      col[i] ≠  col[j];
+      col[i] ≠  col[j] + (j - i);
+      col[i] ≠  col[j] - (j - i);
+   }
+   forall(r in R,c in C)
+      (row[c] = r) <=> (col[r] = c);
+}
+using {
+   forall(r in R) by row[r].getSize()
+      tryall(v in R) by col[v].getSize()
+         row[r] = v;
+}
+
+#CP model for The ESDD Deployment Problem
+minimize 
+    sum(a in C,b in C: a != b) f[a,b]*h[x[a],x[b]]
+subject to {
+   forall(S in Col,c1 in S,c2 in S: c1 < c2)        
+     x[c1] = x[c2];    
+   forall(S in Sep)       
+     alldifferent(all(c in S) x[c]);
+} 
+using {  
+ while (!bound(x))     
+  selectMax(i in C:!x[i].bound(),j in C)(f[i,j])  
+      tryall(n in N) by (min(l in x[j].memberOf(l)) h[n,l]) 
+       x[i] = n;
+}
+
 #Magic Series and Reification
 int n = 5; 
 range D = 0..n-1; 
@@ -317,4 +374,52 @@ solve {
       sum(s in 1..nbCars-i*ub[o]) setup[o,s] >= demand[o] - i*lb[o]; 
     
 }   
+
+#The perfect square problem
+range R = 1..8; 
+int s = 122; range Side = 1..s; range Square = 1..21 
+int side[Square] = [50,42,37,35,33,29,27,25,24,19,18,17,16,15,11,9,8,7,6,4,2]; 
+var{int} x[Square] in Side; 
+var{int} y[Square] in Side; 
+?
+solveall { 
+  forall(i in Square) { 
+ x[i]<=s-side[i]+1;  
+  y[i]<=s-side[i]+1;  
+} 
+  forall(i in Square,j in Square: i<j)    
+    x[i]+side[i]<= x[j] || x[j]+side[j]<=x[i] ||  y[i]+side[i]<=y[j] || y[j]+side[j]<=y[i]
+   
+  forall(p in Side) { 
+     sum(i in Square) side[i]*((x[i]<=p) && (x[i]>=p-side[i]+1)) = s;    
+     sum(i in Square) side[i]*((y[i]<=p) && (y[i]>=p-side[i]+1)) = s;    
+  } 
+} 
+redundant 
+constraints
+non-overlapping
+constraints
+
+
+using { 
+   
+  forall(p in Side)  
+    forall(i in Square)  
+      try  
+         x[i] = p; 
+      |   
+     x[i] != p; 
+?
+  forall(p in Side)  
+    forall(i in Square)  
+      try 
+         y[i] = p; 
+      |  
+         y[i] != p; 
+?
+}
+choose a  x-coordinate p
+consider a square i
+decide whether to place 
+i at position p
 
