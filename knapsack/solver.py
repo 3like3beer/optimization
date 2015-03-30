@@ -8,6 +8,23 @@ Item = namedtuple("Item", ['index', 'value', 'weight'])
 Item2 = namedtuple("Item", ['index', 'value', 'weight','vpw'])
 Solution= namedtuple("Solution", ['nb_items', 'capacity','taken', 'value','weight'])
 
+max_value = 0
+selected =[]
+
+
+def get_max_value():
+    return max_value
+
+def get_selected_taken():
+   return selected
+
+def update_max_value(value,taken):
+    global max_value
+    global selected
+    if value> max_value:
+        max_value = value
+        selected = taken
+   
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
 
@@ -27,7 +44,7 @@ def solve_it(input_data):
 
     # a trivial greedy algorithm for filling the knapsack
     # it takes items in-order until the knapsack is full
-    value,weight,taken = dp_algo2(items,capacity)
+    value,weight,taken = bnb_algo(items,capacity)
     
     
     # prepare the solution in the specified output format
@@ -50,21 +67,64 @@ def trivial_algo(items,capacity):
             weight += item.weight
     return value,weight,taken
 
+        
+def dfs(graph,root):
+    visited = [False for i in graph.vertices]
+    visited[root] = True
+    for v in root.adjacents:
+        if not(visited[v]):
+            dfs(graph,v)
+            
+def bfs(graph,root):
+    visited = [False for i in graph.vertices]
+    q=[]
+    q.enqueue(root);
+    visited[root] = True;
+    while not(q.isEmpty()):
+        v = q.dequeue();
+        for w in graph.adj(v):
+            if not(visited[w]):
+                q.enqueue(w)
+                visited[w] = True
+                #edgeTo[w] = v        
+        
+def dfs_knapsack(sorted_items,capacity,taken):
+    
+    if len(taken)<len(sorted_items):
+        taken = taken + [0]
+        for v in [1,0]:
+            taken[len(taken)-1]=v
+            if is_feasible(taken,sorted_items,capacity):
+                current_value,current_weight = get_value(taken,sorted_items,capacity)
+                current_up_bound = get_upper_bound0(current_value,current_weight,taken,sorted_items,capacity)
+                if current_value>get_max_value():
+                    update_max_value(current_value,taken)
+                    #print(taken)
+                    #print("current_value " + str(current_value))       
+                    #print("current_up_bound " + str (current_up_bound))
+                if current_up_bound > get_max_value():
+                    dfs_knapsack(sorted_items,capacity,taken)
+    return get_max_value(),get_selected_taken()
+    
 def bnb_algo(items,capacity):
-    max_value = 0
+    taken =[]
+    update_max_value( 0,taken)
     sorted_items = sort_items(items)
-    up_bound = get_upper_bound(sorted_items,capacity)
-    taken = [0]*len(items)
-    for i,t in enumerate(taken):
-        if is_feasible(taken,items,capacity):
-            current_value = get_value(taken,sorted_items,capacity)
-            current_value_up_bound = get_upper_bound(current_value,taken,items,capacity)
-            if current_value>max_value:
-                max_value=current_value
-                selected_taken =taken
-            if current_value_up_bound < max_value:
-                prune
+    max_value,selected_taken = dfs_knapsack(sorted_items,capacity,taken)
     return max_value,0,selected_taken  
+    
+def get_upper_bound0(current_value,current_weight,taken,sorted_items,capacity):
+    for item in sorted_items[len(taken):]:
+        if current_weight + item.weight <= capacity:
+            current_value += item.value
+            current_weight += item.weight
+        else:
+            part = (capacity - current_weight) / item.weight
+            current_value += (item.value) * part
+            #weight += (item.weight) * taken[item.index] #=capa
+            current_weight = capacity
+            return current_value,current_weight,taken
+    return current_value,current_weight 
     
 def get_upper_bound(items,capacity):
     value = 0
@@ -89,13 +149,14 @@ def is_feasible(taken,items,capacity):
 
 def get_value(taken,items,capacity):
     total_value = sum([t * item.value for (t,item) in zip(taken,items)])
-    return total_value
+    total_weight = sum([t * item.weight for (t,item) in zip(taken,items)])
+    return total_value,total_weight
 
 class memoized(object):
    '''Decorator. Caches a function's return value each time it is called.
    If called later with the same arguments, the cached value is returned
    (not reevaluated).
-   '''
+  '''
    def __init__(self, func):
       self.func = func
       self.cache = {}
