@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+
+import pulp
 from itertools import combinations_with_replacement,product
 from collections import namedtuple
 import collections
@@ -22,8 +24,10 @@ def update_max_value(value,taken):
     global max_value
     global selected
     if value> max_value:
+        print(str(max_value))
         max_value = value
-        selected = taken
+        selected = taken[:]
+        print("selected " + str(selected))
    
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
@@ -44,7 +48,7 @@ def solve_it(input_data):
 
     # a trivial greedy algorithm for filling the knapsack
     # it takes items in-order until the knapsack is full
-    value,weight,taken = bnb_algo(items,capacity)
+    value,weight,taken = pulp_solve(items,capacity)
     
     
     # prepare the solution in the specified output format
@@ -54,6 +58,19 @@ def solve_it(input_data):
 
 # a trivial greedy algorithm for filling the knapsack
 # it takes items in-order until the knapsack is full
+def pulp_solve(items,capacity):
+    knapsack = pulp.LpProblem("Knapsack Model", pulp.LpMaximize)
+    x = [pulp.LpVariable("x"+str(it.index), 0, 1, 'Integer') for it in items]
+        
+    objective = pulp.LpAffineExpression([ (x[i.index],i.value) for i in items])
+    knapsack.setObjective(objective)
+    #knapsack += sum([items.value[i]*x[i] for i in items])
+    knapsack += sum([i.weight*x[i.index] for i in items]) <= capacity -1
+    knapsack.solve(pulp.COIN_CMD())
+    taken = [int(i.value()) for i in x]
+    value = sum([items[i].value*t for (i,t) in enumerate(taken)])
+    weight = sum([items[i].weight*t  for (i,t) in enumerate(taken)])
+    return value,weight,taken
     
 def trivial_algo(items,capacity):
     value = 0
@@ -89,29 +106,39 @@ def bfs(graph,root):
                 #edgeTo[w] = v        
         
 def dfs_knapsack(sorted_items,capacity,taken):
-    
+    global selected
     if len(taken)<len(sorted_items):
         taken = taken + [0]
         for v in [1,0]:
             taken[len(taken)-1]=v
             if is_feasible(taken,sorted_items,capacity):
                 current_value,current_weight = get_value(taken,sorted_items,capacity)
-                current_up_bound = get_upper_bound0(current_value,current_weight,taken,sorted_items,capacity)
+                current_up_bound,current_weight2,taken = get_upper_bound0(current_value,current_weight,taken,sorted_items,capacity)
                 if current_value>get_max_value():
                     update_max_value(current_value,taken)
-                    #print(taken)
-                    #print("current_value " + str(current_value))       
                     #print("current_up_bound " + str (current_up_bound))
-                if current_up_bound > get_max_value():
+                if current_up_bound > get_max_value() + 0:
                     dfs_knapsack(sorted_items,capacity,taken)
     return get_max_value(),get_selected_taken()
     
 def bnb_algo(items,capacity):
+    global max_value
+    global selected
     taken =[]
     update_max_value( 0,taken)
     sorted_items = sort_items(items)
-    max_value,selected_taken = dfs_knapsack(sorted_items,capacity,taken)
-    return max_value,0,selected_taken  
+    dfs_knapsack(sorted_items,capacity,taken)
+    pad = len(sorted_items) - len(selected) 
+    taken = selected
+    if pad>0:
+        for i in range(pad):
+            taken = taken + [0]
+    taken_final = [0 for t in taken]
+    for t,item in zip(taken,sorted_items):
+        if t>0:
+            #print(item.index)
+            taken_final[item.index] = 1
+    return max_value,0,taken_final  
     
 def get_upper_bound0(current_value,current_weight,taken,sorted_items,capacity):
     for item in sorted_items[len(taken):]:
@@ -124,7 +151,7 @@ def get_upper_bound0(current_value,current_weight,taken,sorted_items,capacity):
             #weight += (item.weight) * taken[item.index] #=capa
             current_weight = capacity
             return current_value,current_weight,taken
-    return current_value,current_weight 
+    return current_value,current_weight ,taken
     
 def get_upper_bound(items,capacity):
     value = 0
