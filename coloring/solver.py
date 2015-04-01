@@ -31,13 +31,18 @@ def solve_it(input_data):
 
 def pulp_solve(node_count,edges):
     coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
-    potential_colors = range(0,node_count)
-    color(node,col) =
-    x = [pulp.LpVariable("x"+str(it.index), 0, 1, 'Integer') for it in items]
-
-    objective = pulp.LpAffineExpression([ (x[i.index],i.value) for i in items])
+    color_set = range(0,node_count)
+    isColor =  [pulp.LpVariable("x" + str(i) + "_" + str(j) , 0,1, 'Binary') for i in color_set for j in color_set]
+    obj = pulp.LpVariable("objective",0,node_count,'Integer')
+    objective = pulp.LpAffineExpression(obj)
     coloring.setObjective(objective)
-    coloring += sum([i.weight*x[i.index] for i in items]) <= capacity -5
+
+    for c in color_set:
+        for v in color_set:
+            coloring += v * isColor[c,v] <= obj
+        coloring += sum(isColor[c,v] for v in color_set) == 1
+    for e in edges:
+
     coloring.solve(pulp.COIN_CMD())
     taken = [int(i.value()) for i in x]
     value = sum([items[i].value*t for (i,t) in enumerate(taken)])
