@@ -65,11 +65,12 @@ def pulp_solve(items,capacity):
     objective = pulp.LpAffineExpression([ (x[i.index],i.value) for i in items])
     knapsack.setObjective(objective)
     #knapsack += sum([items.value[i]*x[i] for i in items])
-    knapsack += sum([i.weight*x[i.index] for i in items]) <= capacity -1
+    knapsack += sum([i.weight*x[i.index] for i in items]) <= capacity -5
     knapsack.solve(pulp.COIN_CMD())
     taken = [int(i.value()) for i in x]
     value = sum([items[i].value*t for (i,t) in enumerate(taken)])
     weight = sum([items[i].weight*t  for (i,t) in enumerate(taken)])
+    print(weight)
     return value,weight,taken
     
 def trivial_algo(items,capacity):
