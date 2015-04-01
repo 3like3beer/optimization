@@ -1,5 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+from ImageOps import colorize
+from operator import is_
+from reportlab.lib.validators import isInstanceOf
 
 import pulp
 
@@ -18,11 +21,10 @@ def solve_it(input_data):
         line = lines[i]
         parts = line.split()
         edges.append((int(parts[0]), int(parts[1])))
-
     # build a trivial solution
     # every node has its own color
     solution = range(0, node_count)
-
+    pulp_solve(node_count,edges)
     # prepare the solution in the specified output format
     output_data = str(node_count) + ' ' + str(0) + '\n'
     output_data += ' '.join(map(str, solution))
@@ -32,23 +34,25 @@ def solve_it(input_data):
 def pulp_solve(node_count,edges):
     coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
     color_set = range(0,node_count)
-    isColor =  [pulp.LpVariable("x" + str(i) + "_" + str(j) , 0,1, 'Binary') for i in color_set for j in color_set]
+    is_color =  [[pulp.LpVariable("x_col" + str(color) + "_node" + str(node) , 0,1, 'Binary') for color in color_set] for node in color_set]
     obj = pulp.LpVariable("objective",0,node_count,'Integer')
     objective = pulp.LpAffineExpression(obj)
     coloring.setObjective(objective)
 
-    for c in color_set:
-        for v in color_set:
-            coloring += v * isColor[c,v] <= obj
-        coloring += sum(isColor[c,v] for v in color_set) == 1
-    for e in edges:
-
+    for color in color_set:
+        for node in color_set:
+            coloring += node * is_color[color][node] <= obj
+        coloring += sum(is_color[color][v] for v in color_set) == 1
+        for e in edges:
+            coloring += is_color[color][e[0]] + is_color[color][e[1]] <= 1
+    print(coloring)
     coloring.solve(pulp.COIN_CMD())
-    taken = [int(i.value()) for i in x]
-    value = sum([items[i].value*t for (i,t) in enumerate(taken)])
-    weight = sum([items[i].weight*t  for (i,t) in enumerate(taken)])
-    print(weight)
-    return value,weight,taken
+
+    for color in color_set:
+        for node in color_set:
+            print(is_color[color][node])
+            print(is_color[color][node].value())
+    return 0
 
 import sys
 
