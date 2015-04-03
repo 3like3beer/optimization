@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import math
+import pulp
 from collections import namedtuple
 
 Point = namedtuple("Point", ['x', 'y'])
@@ -38,6 +39,31 @@ def solve_it(input_data):
 
     return output_data
 
+
+def pulp_solution(points,node_count):
+    tsp = pulp.LpProblem("Tsp Model", pulp.LpMinimize)
+    node_set = range(0,node_count)
+    out_edges =  [[pulp.LpVariable("x_col" + str(color) + "_node" + str(node) , 0,1, 'Binary') for color in range(0,node)] for node in node_set]
+    #objective = pulp.LpAffineExpression([ (out_edges[i,k],i.value) for i in node_set for k in node_set))
+    tsp+= sum([sum([out_edges[i,j]*length(points(i), points(j)) for i in range(0,j)]) for j in node_set])
+
+    for color in node_set:
+        for node in node_set:
+            tsp += node * out_edges[color][node] <= obj
+        tsp += sum(out_edges[color][v] for v in node_set) == 1
+        for e in edges:
+            tsp += out_edges[e[0]][color] + out_edges[e[1]][color] <= 1
+    #print(coloring)
+    tsp.solve(pulp.GLPK_CMD())
+
+    out = []
+    for node in node_set:
+        for color in node_set:
+            if out_edges[node][color].value()>0.5:
+                #print ("col" + str(color) + "node" + str(node))
+                out.append(color)
+    #print out
+    return out
 
 import sys
 

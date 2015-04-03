@@ -1,8 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from ImageOps import colorize
-from operator import is_
-from reportlab.lib.validators import isInstanceOf
 
 import pulp
 
