@@ -3,6 +3,8 @@
 
 import random
 import math
+from reportlab.lib.colors import toColor
+from __builtin__ import enumerate
 import pulp
 from collections import namedtuple
 
@@ -36,7 +38,7 @@ def solve_it(input_data):
         points.append(Point(float(parts[0]), float(parts[1])))
 
     solution = ls_solution(points,node_count)
-    #print(len(solution))
+    #print(sorted(solution))
     obj = tour_length(node_count, points, solution)
 
     # prepare the solution in the specified output format
@@ -45,6 +47,28 @@ def solve_it(input_data):
 
     return output_data
 
+def s_metropolis(t,N,s):
+    n = random.randint(0,N-1)
+    if f(n) <= f(s):
+        return n
+    else:
+        if random.random()< exp(-(f(n)-f(s))/t):
+            return n
+        else:
+            return s
+
+
+
+def sa():
+    s =generateInitialSolution()
+    t = init_temp(s)
+    s_min = s
+    for k in range(1,max_search):
+        s= ls_solution()
+        if f(s) <= f(s_min):
+            s_min = s
+        t = update_temp(s,t)
+    return s
 
 def trivial_solution(points,node_count):
     # build a trivial solution
@@ -53,9 +77,9 @@ def trivial_solution(points,node_count):
 
 
 def ls_solution(points,node_count):
-    solution = trivial_solution(points,node_count)
+    solution = naive_solution(points,node_count)
     current_value = tour_length(node_count, points, solution)
-    iter_max = 500000
+    iter_max = 100
     for i in range(0,iter_max):
         current_value, solution = try_swap(solution,node_count, points,current_value)
         if i%(iter_max/2)==0:
@@ -63,6 +87,73 @@ def ls_solution(points,node_count):
             #print solution
     return solution
 
+
+def furthest_point( p_base, points):
+    l_max = 0
+    for i,p in enumerate(points):
+        if length(points[0], p) > l_max:
+            l_max = length(p_base, p)
+            p_max = p
+            i_max = i
+    return i_max , p_max
+
+def closest_point(p_base, points):
+    l_min = 0
+    for i,p in enumerate(points):
+        if length(points[0], p) > l_min:
+            l_min = length(p_base, p)
+            p_min = p
+            i_min = i
+    return i_min , p_min
+
+
+def rank_simple(vector):
+    return sorted(range(len(vector)), key=vector.__getitem__)
+
+def sort_closest_point(p_base, points):
+    l_min = 0
+    distance = [length(p_base, p) for p in points]
+    return rank_simple(distance)
+
+
+def is_on_the_way(p_in , p_out , p_c ,eps):
+    v1 = Point(p_out.x - p_in.x,p_out.y - p_in.y)
+    v2 = Point(p_c.x - p_in.x,p_c.y - p_in.y)
+    return v1.x * v2.x + v1.y * v2.y + eps >= 0
+
+def naive_solution(points,node_count):
+    solution = []
+    p_base = points[0]
+    i_max , p_max = furthest_point(p_base, points)
+    i2 , p2 = furthest_point(p_max, points)
+    #print(str(i_max) + " "  +str(p_max))
+    #print(str(i2) + " "  +str(p2))
+    #print "-------------------"
+    eps = 0.001
+    visited = [False for p in points]
+    old_sum = sum(visited)
+    #print("old_sum " + str(old_sum))
+    while not(all(visited)):
+        for i in (sort_closest_point(p_base, points)):
+            if not(visited[i]):
+                if is_on_the_way(p_base,p_max,points[i],eps):
+                    p_base = points[i]
+                    solution.append(i)
+                    visited[i] = True
+                if i == i_max:
+                    p_max = p2
+                if i == i2 and p_max == p2:
+                    #p_base = points[i]
+                    #solution.append(i)
+                    #visited[i] = True
+                    p_max = points[0]
+        #print("sum(visited) " + str(sum(visited)))
+        if sum(visited) <= old_sum:
+            eps = eps * 2
+            #print(str(eps))
+        old_sum = sum(visited)
+
+    return solution
 
 def try_swap(solution,node_count, points,current_value):
     c1 = random.randint(0,node_count-2)
