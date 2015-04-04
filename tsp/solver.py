@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import random
 import math
 import pulp
 from collections import namedtuple
@@ -9,6 +10,16 @@ Point = namedtuple("Point", ['x', 'y'])
 
 def length(point1, point2):
     return math.sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
+
+
+def tour_length(node_count, points, sol):
+    # calculate the length of the tour
+    obj = length(points[sol[-1]], points[sol[0]])
+    for index in range(0, node_count - 1):
+        obj += length(points[sol[index]], points[sol[index + 1]])
+
+    return obj
+
 
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
@@ -24,12 +35,9 @@ def solve_it(input_data):
         parts = line.split()
         points.append(Point(float(parts[0]), float(parts[1])))
 
-    solution = pulp_solution(points,node_count)
-    print(len(solution))
-    # calculate the length of the tour
-    obj = length(points[solution[-1]], points[solution[0]])
-    for index in range(0, node_count-1):
-        obj += length(points[solution[index]], points[solution[index+1]])
+    solution = ls_solution(points,node_count)
+    #print(len(solution))
+    obj = tour_length(node_count, points, solution)
 
     # prepare the solution in the specified output format
     output_data = str(obj) + ' ' + str(0) + '\n'
@@ -37,10 +45,50 @@ def solve_it(input_data):
 
     return output_data
 
+
 def trivial_solution(points,node_count):
     # build a trivial solution
     # visit the nodes in the order they appear in the file
     return range(0, node_count)
+
+
+def ls_solution(points,node_count):
+    solution = trivial_solution(points,node_count)
+    current_value = tour_length(node_count, points, solution)
+    iter_max = 500000
+    for i in range(0,iter_max):
+        current_value, solution = try_swap(solution,node_count, points,current_value)
+        if i%(iter_max/2)==0:
+            print current_value
+            #print solution
+    return solution
+
+
+def try_swap(solution,node_count, points,current_value):
+    c1 = random.randint(0,node_count-2)
+    c2 = random.randint(c1+1,node_count-1)
+    solution2 = swap(solution,c1,c2)
+    new_value = tour_length(node_count, points, solution2)
+    if new_value<current_value:
+        print new_value
+        return new_value,solution2
+    return current_value, solution
+
+
+def swap(solution, c1, c2):
+    #print("node_count " + str(node_count) + " c1 " + str(c1) + " c2 " + str(c2))
+    solution2=[]
+    for i in solution:
+        solution2.append(i)
+    for i in range(c1, c2 + 1):
+        j = c2 - i + c1
+        #print("node_count " + str(node_count) + " i " + str(i) + " j " + str(j))
+        solution2[j] = solution[i]
+        #print(solution2)
+
+    #print(solution)
+    #print("sol2")
+    return solution2
 
 def build_variable(node_in,node_out):
     if node_in > node_out:
