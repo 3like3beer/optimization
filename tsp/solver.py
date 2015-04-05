@@ -3,7 +3,6 @@
 
 import random
 import math
-from reportlab.lib.colors import toColor
 from __builtin__ import enumerate
 import pulp
 from collections import namedtuple
@@ -37,7 +36,7 @@ def solve_it(input_data):
         parts = line.split()
         points.append(Point(float(parts[0]), float(parts[1])))
 
-    solution = ls_solution(points,node_count)
+    solution = sa_solution(points,node_count)
     #print(sorted(solution))
     obj = tour_length(node_count, points, solution)
 
@@ -47,28 +46,68 @@ def solve_it(input_data):
 
     return output_data
 
-def s_metropolis(t,N,s):
-    n = random.randint(0,N-1)
-    if f(n) <= f(s):
-        return n
+
+# def s_metropolis(t,N,s):
+#     n = random.randint(0,N-1)
+#     if f(n) <= f(s):
+#         return n
+#     else:
+#         if random.random()< exp(-(f(n)-f(s))/t):
+#             return n
+#         else:
+#             return s
+
+
+def update_temp(is_increase, t):
+    epsilon = 0.01
+    if is_increase:
+        return t * (1 + epsilon)
     else:
-        if random.random()< exp(-(f(n)-f(s))/t):
-            return n
-        else:
-            return s
+        return max(t * 0.4,init_temp())
 
 
-
-def sa():
-    s =generateInitialSolution()
-    t = init_temp(s)
+def sa_solution(points,node_count):
+    taboo_s = set([])
+    max_search = 900000
+    s = naive_solution(points,node_count)
+    min_val = tour_length(node_count, points, s)
+    t = init_temp()
     s_min = s
+    s_real_min = s
+    real_min = min_val
+    taboo_s.add(min_val)
     for k in range(1,max_search):
-        s= ls_solution()
-        if f(s) <= f(s_min):
-            s_min = s
-        t = update_temp(s,t)
-    return s
+        current_value, s = try_swap(s_min,node_count, points)
+        if current_value not in taboo_s:
+            if current_value <= min_val:
+                s_min = s
+                min_val = current_value
+                if current_value <= real_min:
+                    s_real_min = s
+                    real_min = current_value
+                    print("Min " +str(current_value) )
+                taboo_s.add(min_val)
+                #print(min_val)
+                t = update_temp(False,t)
+            else:
+                if random.random()  < math.exp(-(current_value-min_val)/t):
+                    #print("Update cur " + str(current_value) + " min " + str(min_val) + "prob" + str(math.exp(-(current_value-min_val)/t)))
+                    s_min = s
+                    min_val = current_value
+                    taboo_s.add(min_val)
+                    #print(min_val)
+                    t = update_temp(False,t)
+                else:
+                    #print("No update cur " + str(current_value) + " min " + str(min_val) + "prob" + str(math.exp(-(current_value-min_val)/t)))
+                    t = update_temp(True,t)
+        if k%(max_search/100)==0:
+            print current_value
+    s_real_min = ls_solution_given_init(node_count, points,s_real_min)
+    return s_real_min
+
+def init_temp():
+    return 0.0001
+
 
 def trivial_solution(points,node_count):
     # build a trivial solution
@@ -76,16 +115,24 @@ def trivial_solution(points,node_count):
     return range(0, node_count)
 
 
+def ls_solution_given_init(node_count, points, solution):
+    current_value = tour_length(node_count, points, solution)
+    iter_max = 100000
+    for i in range(0, iter_max):
+        new_value, solution2 = try_swap(solution, node_count, points)
+        if new_value < current_value:
+            # print new_value
+            current_value, solution = new_value, solution2
+
+        if i % (iter_max / 10) == 0:
+            print current_value
+            # print solution
+    return solution
+
+
 def ls_solution(points,node_count):
     solution = naive_solution(points,node_count)
-    current_value = tour_length(node_count, points, solution)
-    iter_max = 100
-    for i in range(0,iter_max):
-        current_value, solution = try_swap(solution,node_count, points,current_value)
-        if i%(iter_max/2)==0:
-            print current_value
-            #print solution
-    return solution
+    return ls_solution_given_init(node_count, points, solution)
 
 
 def furthest_point( p_base, points):
@@ -155,15 +202,31 @@ def naive_solution(points,node_count):
 
     return solution
 
-def try_swap(solution,node_count, points,current_value):
-    c1 = random.randint(0,node_count-2)
-    c2 = random.randint(c1+1,node_count-1)
-    solution2 = swap(solution,c1,c2)
+
+def swap_range(c1, c2,  node_count, solution):
+    solution2 = [solution[i] for i in range(0, c1+1)]
+    for i in range(c2, node_count):
+        solution2.append(solution[i])
+    for i in range(c1+1, c2):
+        solution2.append(solution[i])
+    return solution2
+
+
+def try_swap(solution,node_count, points):
+    a = random.random()
+    if a < 0.5:
+        c1 = random.randint(0,node_count-2)
+        c2 = random.randint(c1+1,node_count-1)
+        solution2 = swap_range(c1, c2, node_count, solution)
+        #print("c1 " + str(c1) + " " + str(solution[c1]) +" c2 " +str(c2) +  " " + str(solution[c2])+  " " + str(solution[node_count-1]) )
+        #print(solution)
+        #print(solution2)
+    else:
+        c1 = random.randint(0,node_count-2)
+        c2 = random.randint(c1+1,node_count-1)
+        solution2 = swap(solution,c1,c2)
     new_value = tour_length(node_count, points, solution2)
-    if new_value<current_value:
-        print new_value
-        return new_value,solution2
-    return current_value, solution
+    return new_value, solution2
 
 
 def swap(solution, c1, c2):
