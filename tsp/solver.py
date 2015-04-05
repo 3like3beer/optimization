@@ -117,7 +117,7 @@ def trivial_solution(points,node_count):
 
 def ls_solution_given_init(node_count, points, solution):
     current_value = tour_length(node_count, points, solution)
-    iter_max = 100000
+    iter_max = 200000
     for i in range(0, iter_max):
         new_value, solution2 = try_swap(solution, node_count, points)
         if new_value < current_value:
