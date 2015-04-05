@@ -1,11 +1,14 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import numpy as np
 import random
 import math
 from __builtin__ import enumerate
 import pulp
 from collections import namedtuple
+from openopt import *
+import networkx as nx
 
 Point = namedtuple("Point", ['x', 'y'])
 
@@ -21,6 +24,17 @@ def tour_length(node_count, points, sol):
 
     return obj
 
+def oo_solution(points, node_count):
+
+    G = nx.Graph()
+    G.add_edges_from(\
+                     [(i,j,{'time': length(pi,pj), 'cost':length(pi,pj)}) for (i,pi) in enumerate(points) for (j,pj) in enumerate(points) if i != j ])
+
+    p = TSP(G, objective = 'time', start = 0,maxFunEvals=100000) #, [optional] returnToStart={True}|False, constraints = ..., etc
+
+    r = p.solve('sa') # also you can use some other solvers - sa, interalg, OpenOpt MILP solvers
+
+    return ([r.nodes[i] for i in range(0,node_count)])
 
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
@@ -37,7 +51,8 @@ def solve_it(input_data):
         points.append(Point(float(parts[0]), float(parts[1])))
 
     solution = sa_solution(points,node_count)
-    #print(sorted(solution))
+    print(solution)
+
     obj = tour_length(node_count, points, solution)
 
     # prepare the solution in the specified output format
@@ -68,7 +83,7 @@ def update_temp(is_increase, t):
 
 def sa_solution(points,node_count):
     taboo_s = set([])
-    max_search = 900000
+    max_search = 3000
     s = naive_solution(points,node_count)
     min_val = tour_length(node_count, points, s)
     t = init_temp()
@@ -86,7 +101,7 @@ def sa_solution(points,node_count):
                     s_real_min = s
                     real_min = current_value
                     print("Min " +str(current_value) )
-                taboo_s.add(min_val)
+                #taboo_s.add(min_val)
                 #print(min_val)
                 t = update_temp(False,t)
             else:
@@ -94,7 +109,7 @@ def sa_solution(points,node_count):
                     #print("Update cur " + str(current_value) + " min " + str(min_val) + "prob" + str(math.exp(-(current_value-min_val)/t)))
                     s_min = s
                     min_val = current_value
-                    taboo_s.add(min_val)
+                    #taboo_s.add(min_val)
                     #print(min_val)
                     t = update_temp(False,t)
                 else:
@@ -106,7 +121,7 @@ def sa_solution(points,node_count):
     return s_real_min
 
 def init_temp():
-    return 0.0001
+    return 0.01
 
 
 def trivial_solution(points,node_count):
@@ -117,7 +132,7 @@ def trivial_solution(points,node_count):
 
 def ls_solution_given_init(node_count, points, solution):
     current_value = tour_length(node_count, points, solution)
-    iter_max = 200000
+    iter_max = 200
     for i in range(0, iter_max):
         new_value, solution2 = try_swap(solution, node_count, points)
         if new_value < current_value:
@@ -135,14 +150,43 @@ def ls_solution(points,node_count):
     return ls_solution_given_init(node_count, points, solution)
 
 
+def get_rightmost(points):
+    val, idx = max((p.x, idx) for (idx, p) in enumerate(points))
+    return idx, points[idx]
+
+def get_next_convex(point, points):
+    angles = [get_angle(point,p) for p in points]
+    val, idx = min((val, idx) for (idx, val) in enumerate(angles))
+    return idx, points[idx]
+
+def unit_vector(vector):
+    """ Returns the unit vector of the vector.  """
+    return vector / np.linalg.norm(vector)
+
+def angle_between(v1, v2):
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    angle = np.arccos(np.dot(v1_u, v2_u))
+    if np.isnan(angle):
+        if (v1_u == v2_u).all():
+            return 0.0
+        else:
+            return np.pi
+    return angle
+
+def get_angle(p1,p2):
+    v = compute_vector(p1, p2)
+    return angle_between(v,Point(0,1))
+
 def furthest_point( p_base, points):
     l_max = 0
     for i,p in enumerate(points):
-        if length(points[0], p) > l_max:
+        if length(p_base, p) > l_max:
             l_max = length(p_base, p)
             p_max = p
             i_max = i
     return i_max , p_max
+
 
 def closest_point(p_base, points):
     l_min = 0
@@ -163,9 +207,13 @@ def sort_closest_point(p_base, points):
     return rank_simple(distance)
 
 
+def compute_vector(p_in, p_out):
+    return Point(p_out.x - p_in.x, p_out.y - p_in.y)
+
+
 def is_on_the_way(p_in , p_out , p_c ,eps):
-    v1 = Point(p_out.x - p_in.x,p_out.y - p_in.y)
-    v2 = Point(p_c.x - p_in.x,p_c.y - p_in.y)
+    v1 = compute_vector(p_in, p_out)
+    v2 = compute_vector(p_in, p_c)
     return v1.x * v2.x + v1.y * v2.y + eps >= 0
 
 def naive_solution(points,node_count):
