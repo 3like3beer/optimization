@@ -30,7 +30,7 @@ def oo_solution(points, node_count):
     G.add_edges_from(\
                      [(i,j,{'time': length(pi,pj), 'cost':length(pi,pj)}) for (i,pi) in enumerate(points) for (j,pj) in enumerate(points) if i != j ])
 
-    p = TSP(G, objective = 'time', start = 0,maxFunEvals=100000) #, [optional] returnToStart={True}|False, constraints = ..., etc
+    p = TSP(G, objective = 'time', start = 0,maxFunEvals=1500000,maxIter=50000) #, [optional] returnToStart={True}|False, constraints = ..., etc
 
     r = p.solve('sa') # also you can use some other solvers - sa, interalg, OpenOpt MILP solvers
 
@@ -50,7 +50,7 @@ def solve_it(input_data):
         parts = line.split()
         points.append(Point(float(parts[0]), float(parts[1])))
 
-    solution = sa_solution(points,node_count)
+    solution = oo_solution(points,node_count)
     print(solution)
 
     obj = tour_length(node_count, points, solution)
@@ -149,34 +149,86 @@ def ls_solution(points,node_count):
     solution = naive_solution(points,node_count)
     return ls_solution_given_init(node_count, points, solution)
 
+def cx_solution(points,node_count):
+    solution = convex_hull(points)
+    point_set = {p:i for i,p in enumerate(points)}
+    solution2 = [point_set[p] for p in solution]
+    return solution2
+
+def convex_hull(points):
+    """Computes the convex hull of a set of 2D points.
+
+    Input: an iterable sequence of (x, y) pairs representing the points.
+    Output: a list of vertices of the convex hull in counter-clockwise order,
+      starting from the vertex with the lexicographically smallest coordinates.
+    Implements Andrew's monotone chain algorithm. O(n log n) complexity.
+    """
+
+    # Sort the points lexicographically (tuples are compared lexicographically).
+    # Remove duplicates to detect the case we have just one unique point.
+    points = sorted(set(points))
+
+    # Boring case: no points or a single point, possibly repeated multiple times.
+    if len(points) <= 1:
+        return points
+
+    # 2D cross product of OA and OB vectors, i.e. z-component of their 3D cross product.
+    # Returns a positive value, if OAB makes a counter-clockwise turn,
+    # negative for clockwise turn, and zero if the points are collinear.
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    # Build lower hull
+    lower = []
+    for p in points:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+
+    # Build upper hull
+    upper = []
+    for p in reversed(points):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+
+    # Concatenation of the lower and upper hulls gives the convex hull.
+    # Last point of each list is omitted because it is repeated at the beginning of the other list.
+    return lower[:-1] + upper[:-1]
+
+
+# Example: convex hull of a 10-by-10 grid.
+assert convex_hull([(i/10, i%10) for i in range(100)]) == [(0, 0), (9, 0), (9, 9), (0, 9)]
 
 def get_rightmost(points):
     val, idx = max((p.x, idx) for (idx, p) in enumerate(points))
-    return idx, points[idx]
+    return idx
 
-def get_next_convex(point, points):
-    angles = [get_angle(point,p) for p in points]
-    val, idx = min((val, idx) for (idx, val) in enumerate(angles))
-    return idx, points[idx]
-
-def unit_vector(vector):
-    """ Returns the unit vector of the vector.  """
-    return vector / np.linalg.norm(vector)
-
-def angle_between(v1, v2):
-    v1_u = unit_vector(v1)
-    v2_u = unit_vector(v2)
-    angle = np.arccos(np.dot(v1_u, v2_u))
-    if np.isnan(angle):
-        if (v1_u == v2_u).all():
-            return 0.0
-        else:
-            return np.pi
-    return angle
+def get_next_convex(point, points,angle):
+    angles = [get_angle(points[point], p) - angle for p in points]
+    #angles[point] = 2 * math.pi
+    print angles
+    print points
+    l = None
+    min_val, min_idx = min((val, idx) for (idx, val) in enumerate(angles))
+    print ("min_val " + str(min_val))
+    for (idx, val) in enumerate(angles):
+        if val == min_val:
+            if l is None:
+                l = length(points[point],points[idx])
+                out = idx
+            else:
+                if l > length(points[point],points[idx]):
+                    l = length(points[point],points[idx])
+                    out = idx
+    return out,val
 
 def get_angle(p1,p2):
     v = compute_vector(p1, p2)
-    return angle_between(v,Point(0,1))
+    res = np.arctan2(v.y, v.x)
+    if res <= 0:
+        res = res + 2 * math.pi
+    return res
 
 def furthest_point( p_base, points):
     l_max = 0
@@ -189,9 +241,9 @@ def furthest_point( p_base, points):
 
 
 def closest_point(p_base, points):
-    l_min = 0
+    l_min = 100000000000000
     for i,p in enumerate(points):
-        if length(points[0], p) > l_min:
+        if length(points[0], p) < l_min:
             l_min = length(p_base, p)
             p_min = p
             i_min = i
