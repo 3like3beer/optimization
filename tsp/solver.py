@@ -118,6 +118,7 @@ def sa_solution(points,node_count):
         if k%(max_search/10)==0:
             print ( str(real_min) + " " + str(current_value))
     s_real_min = ls_solution_given_init(node_count, points,s_real_min)
+    s_real_min = ls_solution_given_init2(node_count, points,s_real_min)
     return s_real_min
 
 def init_temp():
@@ -134,7 +135,7 @@ def ls_solution_given_init(node_count, points, solution):
     current_value = tour_length(node_count, points, solution)
     cx_hull = cx_indices(points,node_count)
 
-    iter_max = 10000
+    iter_max = 200000
     for i in range(0, iter_max):
         new_value, solution2 = try_swap2(solution, node_count, points,cx_hull)
         if new_value < current_value:
@@ -149,6 +150,25 @@ def ls_solution_given_init(node_count, points, solution):
         print (str(solution.index(cx_hull[i])) + " " + str(solution.index(cx_hull[i+1])))
     return solution
 
+
+def ls_solution_given_init2(node_count, points, solution):
+    current_value = tour_length(node_count, points, solution)
+    cx_hull = cx_indices(points,node_count)
+
+    iter_max = 10000
+    for i in range(0, iter_max):
+        new_value, solution2 = try_swap(solution, node_count, points)
+        if new_value < current_value:
+            # print new_value
+            current_value, solution = new_value, solution2
+
+        if i % (iter_max / 10) == 0:
+            print current_value
+            # print solution
+
+    for i in range(0,len(cx_hull)-2):
+        print (str(solution.index(cx_hull[i])) + " " + str(solution.index(cx_hull[i+1])))
+    return solution
 
 def ls_solution(points,node_count):
     solution = naive_solution(points,node_count)
@@ -237,13 +257,39 @@ def naive_solution(points,node_count):
     for p in sorted_points:
        if p not in solution:
             solution.append(p)
+    # solution = []
+    # i = 0
+    # for p in cx_hull:
+    #     while points[sorted_points[i]].x <= points[p].x and sorted_points[i] not in cx_hull:
+    #         solution.append(sorted_points[i])
+    #         i += 1
+    #     if sorted_points[i] == p:
+    #         solution.append(p)
+    #         i += 1
+    #     if points[sorted_points[i]].x > points[p].x:
+    #         solution.append(p)
+    #
+    #     #print(i)
+    # while i < node_count:
+    #     if sorted_points[i] not in cx_hull:
+    #         solution.append(sorted_points[i])
+    #     i += 1
+    # print(len(sorted_points))
+    # print([points[p].x for p in sorted_points])
+    # print(set(range(0,node_count)).difference(set(solution)))
+    # print([points[p] for p in set(range(0,node_count)).difference(set(solution))])
     return solution
 
 def swap_2_ranges(c1, c2, c3, node_count, solution,before):
+    inverse = random.randint(0,1)
     if before:
         solution2 = [solution[i] for i in range(0, c3+1)]
-        for i in range(c1+1, c2+1):
-            solution2.append(solution[i])
+        if inverse == 0:
+            for i in range(c1+1, c2+1):
+                solution2.append(solution[i])
+        else:
+            for i in range(c1+1, c2+1):
+                solution2.append(solution[c2 + 1 + c1 - i])
         for i in range(c3+1, c1+1):
             solution2.append(solution[i])
         for i in range(c2+1, node_count):
@@ -252,8 +298,12 @@ def swap_2_ranges(c1, c2, c3, node_count, solution,before):
         solution2 = [solution[i] for i in range(0, c1+1)]
         for i in range(c2+1, c3+1):
             solution2.append(solution[i])
-        for i in range(c1+1, c2+1):
-            solution2.append(solution[i])
+        if inverse == 0:
+            for i in range(c1+1, c2+1):
+                solution2.append(solution[i])
+        else:
+            for i in range(c1+1, c2+1):
+                solution2.append(solution[c2 + 1 + c1 - i])
         for i in range(c3+1, node_count):
             solution2.append(solution[i])
 
@@ -283,7 +333,7 @@ def try_swap2(solution,node_count, points,cx_hull):
             c2 = random.randint(c1+1,end-1)
             before = random.random()
             if before<0.5:
-                c3 = random.randint(0,c1-1)
+                c3 = random.randint(0,c1)
                 solution2 = swap_2_ranges(c1, c2, c3,node_count, solution,True)
             else:
                 if c2 < node_count-2:
