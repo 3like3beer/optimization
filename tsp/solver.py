@@ -1,14 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import numpy as np
 import random
 import math
 from __builtin__ import enumerate
 import pulp
 from collections import namedtuple
-from openopt import *
-import networkx as nx
+# from openopt import *
+#import networkx as nx
 
 Point = namedtuple("Point", ['x', 'y'])
 
@@ -24,17 +23,17 @@ def tour_length(node_count, points, sol):
 
     return obj
 
-def oo_solution(points, node_count):
+# def oo_solution(points, node_count):
 
-    G = nx.Graph()
-    G.add_edges_from(\
-                     [(i,j,{'time': length(pi,pj), 'cost':length(pi,pj)}) for (i,pi) in enumerate(points) for (j,pj) in enumerate(points) if i != j ])
+    # G = nx.Graph()
+    # G.add_edges_from(\
+    #                  [(i,j,{'time': length(pi,pj), 'cost':length(pi,pj)}) for (i,pi) in enumerate(points) for (j,pj) in enumerate(points) if i != j ])
 
-    p = TSP(G, objective = 'time', start = 0,maxFunEvals=1500000,maxIter=50000) #, [optional] returnToStart={True}|False, constraints = ..., etc
+    # p = TSP(G, objective = 'time', start = 0,maxFunEvals=1500000,maxIter=50000) #, [optional] returnToStart={True}|False, constraints = ..., etc
 
-    r = p.solve('sa') # also you can use some other solvers - sa, interalg, OpenOpt MILP solvers
+    # r = [] # p.solve('sa') # also you can use some other solvers - sa, interalg, OpenOpt MILP solvers
 
-    return ([r.nodes[i] for i in range(0,node_count)])
+    # return ([r.nodes[i] for i in range(0,node_count)])
 
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
@@ -50,7 +49,7 @@ def solve_it(input_data):
         parts = line.split()
         points.append(Point(float(parts[0]), float(parts[1])))
 
-    solution = oo_solution(points,node_count)
+    solution = sa_solution(points,node_count)
     print(solution)
 
     obj = tour_length(node_count, points, solution)
@@ -83,7 +82,7 @@ def update_temp(is_increase, t):
 
 def sa_solution(points,node_count):
     taboo_s = set([])
-    max_search = 3000
+    max_search = 80000
     s = naive_solution(points,node_count)
     min_val = tour_length(node_count, points, s)
     t = init_temp()
@@ -91,8 +90,9 @@ def sa_solution(points,node_count):
     s_real_min = s
     real_min = min_val
     taboo_s.add(min_val)
+    cx_hull = cx_indices(points,node_count)
     for k in range(1,max_search):
-        current_value, s = try_swap(s_min,node_count, points)
+        current_value, s =  try_swap2(s_min, node_count, points,cx_hull)
         if current_value not in taboo_s:
             if current_value <= min_val:
                 s_min = s
@@ -100,7 +100,7 @@ def sa_solution(points,node_count):
                 if current_value <= real_min:
                     s_real_min = s
                     real_min = current_value
-                    print("Min " +str(current_value) )
+                    #print("Min " +str(current_value) )
                 #taboo_s.add(min_val)
                 #print(min_val)
                 t = update_temp(False,t)
@@ -115,8 +115,8 @@ def sa_solution(points,node_count):
                 else:
                     #print("No update cur " + str(current_value) + " min " + str(min_val) + "prob" + str(math.exp(-(current_value-min_val)/t)))
                     t = update_temp(True,t)
-        if k%(max_search/100)==0:
-            print current_value
+        if k%(max_search/10)==0:
+            print ( str(real_min) + " " + str(current_value))
     s_real_min = ls_solution_given_init(node_count, points,s_real_min)
     return s_real_min
 
@@ -132,9 +132,11 @@ def trivial_solution(points,node_count):
 
 def ls_solution_given_init(node_count, points, solution):
     current_value = tour_length(node_count, points, solution)
-    iter_max = 200
+    cx_hull = cx_indices(points,node_count)
+
+    iter_max = 10000
     for i in range(0, iter_max):
-        new_value, solution2 = try_swap(solution, node_count, points)
+        new_value, solution2 = try_swap2(solution, node_count, points,cx_hull)
         if new_value < current_value:
             # print new_value
             current_value, solution = new_value, solution2
@@ -142,6 +144,9 @@ def ls_solution_given_init(node_count, points, solution):
         if i % (iter_max / 10) == 0:
             print current_value
             # print solution
+
+    for i in range(0,len(cx_hull)-2):
+        print (str(solution.index(cx_hull[i])) + " " + str(solution.index(cx_hull[i+1])))
     return solution
 
 
@@ -149,7 +154,7 @@ def ls_solution(points,node_count):
     solution = naive_solution(points,node_count)
     return ls_solution_given_init(node_count, points, solution)
 
-def cx_solution(points,node_count):
+def cx_indices(points,node_count):
     solution = convex_hull(points)
     point_set = {p:i for i,p in enumerate(points)}
     solution2 = [point_set[p] for p in solution]
@@ -204,52 +209,6 @@ def get_rightmost(points):
     val, idx = max((p.x, idx) for (idx, p) in enumerate(points))
     return idx
 
-def get_next_convex(point, points,angle):
-    angles = [get_angle(points[point], p) - angle for p in points]
-    #angles[point] = 2 * math.pi
-    print angles
-    print points
-    l = None
-    min_val, min_idx = min((val, idx) for (idx, val) in enumerate(angles))
-    print ("min_val " + str(min_val))
-    for (idx, val) in enumerate(angles):
-        if val == min_val:
-            if l is None:
-                l = length(points[point],points[idx])
-                out = idx
-            else:
-                if l > length(points[point],points[idx]):
-                    l = length(points[point],points[idx])
-                    out = idx
-    return out,val
-
-def get_angle(p1,p2):
-    v = compute_vector(p1, p2)
-    res = np.arctan2(v.y, v.x)
-    if res <= 0:
-        res = res + 2 * math.pi
-    return res
-
-def furthest_point( p_base, points):
-    l_max = 0
-    for i,p in enumerate(points):
-        if length(p_base, p) > l_max:
-            l_max = length(p_base, p)
-            p_max = p
-            i_max = i
-    return i_max , p_max
-
-
-def closest_point(p_base, points):
-    l_min = 100000000000000
-    for i,p in enumerate(points):
-        if length(points[0], p) < l_min:
-            l_min = length(p_base, p)
-            p_min = p
-            i_min = i
-    return i_min , p_min
-
-
 def rank_simple(vector):
     return sorted(range(len(vector)), key=vector.__getitem__)
 
@@ -258,6 +217,8 @@ def sort_closest_point(p_base, points):
     distance = [length(p_base, p) for p in points]
     return rank_simple(distance)
 
+def sort_by_x(points):
+     return [i for i,p in sorted(enumerate(points), key=lambda p: p[1].x)]
 
 def compute_vector(p_in, p_out):
     return Point(p_out.x - p_in.x, p_out.y - p_in.y)
@@ -269,38 +230,34 @@ def is_on_the_way(p_in , p_out , p_c ,eps):
     return v1.x * v2.x + v1.y * v2.y + eps >= 0
 
 def naive_solution(points,node_count):
-    solution = []
-    p_base = points[0]
-    i_max , p_max = furthest_point(p_base, points)
-    i2 , p2 = furthest_point(p_max, points)
-    #print(str(i_max) + " "  +str(p_max))
-    #print(str(i2) + " "  +str(p2))
-    #print "-------------------"
-    eps = 0.001
-    visited = [False for p in points]
-    old_sum = sum(visited)
-    #print("old_sum " + str(old_sum))
-    while not(all(visited)):
-        for i in (sort_closest_point(p_base, points)):
-            if not(visited[i]):
-                if is_on_the_way(p_base,p_max,points[i],eps):
-                    p_base = points[i]
-                    solution.append(i)
-                    visited[i] = True
-                if i == i_max:
-                    p_max = p2
-                if i == i2 and p_max == p2:
-                    #p_base = points[i]
-                    #solution.append(i)
-                    #visited[i] = True
-                    p_max = points[0]
-        #print("sum(visited) " + str(sum(visited)))
-        if sum(visited) <= old_sum:
-            eps = eps * 2
-            #print(str(eps))
-        old_sum = sum(visited)
-
+    cx_hull = cx_indices(points,node_count)
+    print(cx_hull)
+    solution = [p for p in cx_hull]
+    sorted_points = sort_by_x(points)
+    for p in sorted_points:
+       if p not in solution:
+            solution.append(p)
     return solution
+
+def swap_2_ranges(c1, c2, c3, node_count, solution,before):
+    if before:
+        solution2 = [solution[i] for i in range(0, c3+1)]
+        for i in range(c1+1, c2+1):
+            solution2.append(solution[i])
+        for i in range(c3+1, c1+1):
+            solution2.append(solution[i])
+        for i in range(c2+1, node_count):
+            solution2.append(solution[i])
+    else:
+        solution2 = [solution[i] for i in range(0, c1+1)]
+        for i in range(c2+1, c3+1):
+            solution2.append(solution[i])
+        for i in range(c1+1, c2+1):
+            solution2.append(solution[i])
+        for i in range(c3+1, node_count):
+            solution2.append(solution[i])
+
+    return solution2
 
 
 def swap_range(c1, c2,  node_count, solution):
@@ -311,6 +268,44 @@ def swap_range(c1, c2,  node_count, solution):
         solution2.append(solution[i])
     return solution2
 
+
+def try_swap2(solution,node_count, points,cx_hull):
+    a = random.random()
+    cx_point = random.randint(0,len(cx_hull)-1)
+    start = solution.index(cx_hull[cx_point])
+    if cx_point == len(cx_hull)-1:
+        end = node_count
+    else:
+        end = solution.index(cx_hull[cx_point+1])
+    if a < 0.5:
+        if end - 2 > start:
+            c1 = random.randint(start + 1, end-2)
+            c2 = random.randint(c1+1,end-1)
+            before = random.random()
+            if before<0.5:
+                c3 = random.randint(0,c1-1)
+                solution2 = swap_2_ranges(c1, c2, c3,node_count, solution,True)
+            else:
+                if c2 < node_count-2:
+                    c3 = random.randint(c2+1,node_count-1)
+                    solution2 = swap_2_ranges(c1, c2, c3,node_count, solution,False)
+                else:
+                    solution2 = solution
+
+        else:
+            solution2 = solution
+        #print("c1 " + str(c1) + " " + str(solution[c1]) +" c2 " +str(c2) +  " " + str(solution[c2])+  " " + str(solution[node_count-1]) )
+        #print(solution)
+        #print(solution2)
+    else:
+        if end-2>start:
+            c1 = random.randint(start,end-2)
+            c2 = random.randint(c1+1,end-1)
+            solution2 = swap(solution,c1,c2)
+        else:
+            solution2 = solution
+    new_value = tour_length(node_count, points, solution2)
+    return new_value, solution2
 
 def try_swap(solution,node_count, points):
     a = random.random()

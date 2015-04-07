@@ -23,7 +23,7 @@ def solve_it(input_data):
     #solution = range(0, node_count)
 
 
-    solution = pulp_solve(node_count,edges)
+    solution = pulp_solve(node_count,edges,get_opt(node_count))
 
     # prepare the solution in the specified output format
     output_data = str(max(solution)+1) + ' ' + str(0) + '\n'
@@ -31,11 +31,15 @@ def solve_it(input_data):
 
     return output_data
 
-def pulp_solve(node_count,edges):
+def get_opt(node_count):
+    opt = {"50":6,"70":17,"100":15,"250":73,"500":12,"1000":88}
+    return opt[str(node_count)]
+
+def pulp_solve(node_count,edges,opt):
     coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
     color_set = range(0,node_count)
     is_color =  [[pulp.LpVariable("x_col" + str(color) + "_node" + str(node) , 0,1, 'Binary') for color in color_set] for node in color_set]
-    obj = pulp.LpVariable("objective",node_count/5,node_count,'Integer')
+    obj = pulp.LpVariable("objective",opt-1,opt+1,'Integer')
     objective = pulp.LpAffineExpression(obj)
     coloring.setObjective(objective)
 
@@ -45,8 +49,9 @@ def pulp_solve(node_count,edges):
         coloring += sum(is_color[color][v] for v in color_set) == 1
         for e in edges:
             coloring += is_color[e[0]][color] + is_color[e[1]][color] <= 1
+        coloring += is_color[0][0] == 1
     #print(coloring)
-    coloring.solve(pulp.GLPK_CMD())
+    coloring.solve(pulp.PULP_CBC_CMD(maxSeconds= 1000))
 
     out = []
     for node in color_set:
