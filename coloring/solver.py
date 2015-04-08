@@ -83,24 +83,24 @@ def dfs(graph,root):
             dfs(graph,v)
 
 def pulp_solve(node_count,edges,opt):
-    print ("opt" +  str(opt))
-    print(node_count)
+    print ("opt " +  str(opt))
+    print("node_count " + str(node_count))
     coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
-    color_set = range(0,node_count)
+    color_set = range(0,opt + 5)
     node_set = range(0,node_count)
     is_color =  [[pulp.LpVariable("x_col" + str(c) + "_node" + str(n) , 0,1, 'Binary') for c in color_set] for n in node_set]
-    obj = pulp.LpVariable("objective",opt,opt+10,'Integer')
+    obj = pulp.LpVariable("objective",opt,opt+3,'Integer')
     objective = pulp.LpAffineExpression(obj)
     coloring.setObjective(objective)
-    print(obj)
 
 
-    for color in node_set:
+    for node in node_set:
         for c in color_set:
-            coloring += c * is_color[color][c] <= obj
-        coloring += sum(is_color[color][v] for v in color_set) == 1
+            coloring += c * is_color[node][c] <= obj
+        coloring += sum(is_color[node][c] for c in color_set) == 1
+    for c in color_set:
         for e in edges:
-            coloring += is_color[e[0]][color] + is_color[e[1]][color] <= 1
+            coloring += is_color[e[0]][c] + is_color[e[1]][c] <= 1
 
     # for n in node_set:
     #     for c in color_set:

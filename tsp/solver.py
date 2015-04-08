@@ -8,7 +8,7 @@ import pulp
 from collections import namedtuple
 # from openopt import *
 #import networkx as nx
-ITER_MAX = 200000
+ITER_MAX = 2000
 
 Point = namedtuple("Point", ['x', 'y'])
 
@@ -80,11 +80,17 @@ def update_temp(is_increase, t):
     else:
         return max(t * 0.99,init_temp()/1000)
 
+def init_sol():
+    input_data_file = open("./5.txt", 'r')
+    input_data = ''.join(input_data_file.readlines())
+    input_data_file.close()
+    return [int(i) for i in input_data.split(",")]
 
 def sa_solution(points,node_count):
     taboo_s = set([])
     max_search = ITER_MAX * 5
-    s = naive_solution(points,node_count)
+    #s = naive_solution(points,node_count)
+    s = init_sol()
     min_val = tour_length(node_count, points, s)
     t = init_temp()
     s_min = s
