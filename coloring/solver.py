@@ -83,42 +83,48 @@ def dfs(graph,root):
             dfs(graph,v)
 
 def pulp_solve(node_count,edges,opt):
+    print (opt)
     coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
-    color_set = range(0,opt + 1)
+    color_set = range(0,node_count)
     node_set = range(0,node_count)
-    is_color =  [[pulp.LpVariable("x_col" + str(color) + "_node" + str(node) , 0,1, 'Binary') for node in node_set] for color in color_set]
-    print("opt " + str(opt))
+    is_color =  [[pulp.LpVariable("x_col" + str(c) + "_node" + str(n) , 0,1, 'Binary') for c in color_set] for n in node_set]
     obj = pulp.LpVariable("objective",opt-1,opt+1,'Integer')
     objective = pulp.LpAffineExpression(obj)
     coloring.setObjective(objective)
-    #coloring += sum([sum(is_color[color]) * sum(is_color[color]) for color in color_set])
-    for node in node_set:
-        for color in color_set:
+
+
+    for color in color_set:
+        for node in color_set:
             coloring += node * is_color[color][node] <= obj
-        coloring += sum(is_color[color][node] for color in color_set) == 1
-        #for e in edges:
-        #    coloring += is_color[e[0]][color] + is_color[e[1]][color] <= 1
-        coloring += is_color[0][0] == 1
-
+        coloring += sum(is_color[color][v] for v in color_set) == 1
         for e in edges:
-            coloring += is_color[color][e[0]] + is_color[color][e[1]] <= 1
+            coloring += is_color[e[0]][color] + is_color[e[1]][color] <= 1
 
-        #coloring += sum(is_color[color][node] for color in color_set) == 1
+    # for n in node_set:
+    #     for c in color_set:
+    #         coloring += n * is_color[n][c] <= obj
+    #     coloring += sum(is_color[n][col] for col in color_set) == 1
+    # for c in color_set:
+    #     for e in edges:
+    #         coloring += is_color[e[0]][c] + is_color[e[1]][c] <= 1
+    #
+    # for c in color_set:
+    #     coloring += sum(is_color[v][c] for v in node_set) == 1
 
-    print(coloring)
-    coloring.solve()
+    #coloring += is_color[0][0] == 1
+
+    #print(coloring)
+    coloring.solve(pulp.GLPK_CMD())
 
     out = []
-    for node in node_set:
-        found = False
-        for color in color_set:
-            if is_color[color][node].value()>0.5 and not found:
-                out.append(color)
-                found =True
-        if not(found):
-            print([is_color[color][node] for color in color_set])
-
-    print out
+    for n in node_set:
+        for c in color_set:
+            if is_color[n][c].value()>0.5:
+                #print ("col" + str(color) + "node" + str(node))
+                out.append(n)
+        # print([is_color[c][n] for n in color_set])
+        # print([is_color[c][n].value() for n in color_set])
+    #print out
     return out
 
 import sys
