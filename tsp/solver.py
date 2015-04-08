@@ -8,6 +8,7 @@ import pulp
 from collections import namedtuple
 # from openopt import *
 #import networkx as nx
+ITER_MAX = 2000000
 
 Point = namedtuple("Point", ['x', 'y'])
 
@@ -77,12 +78,12 @@ def update_temp(is_increase, t):
     if is_increase:
         return t * (1 + epsilon)
     else:
-        return max(t * 0.4,init_temp())
+        return max(t * 0.99,init_temp()/1000)
 
 
 def sa_solution(points,node_count):
     taboo_s = set([])
-    max_search = 80000
+    max_search = ITER_MAX * 5
     s = naive_solution(points,node_count)
     min_val = tour_length(node_count, points, s)
     t = init_temp()
@@ -122,7 +123,7 @@ def sa_solution(points,node_count):
     return s_real_min
 
 def init_temp():
-    return 0.01
+    return 3
 
 
 def trivial_solution(points,node_count):
@@ -135,7 +136,7 @@ def ls_solution_given_init(node_count, points, solution):
     current_value = tour_length(node_count, points, solution)
     cx_hull = cx_indices(points,node_count)
 
-    iter_max = 200000
+    iter_max = ITER_MAX
     for i in range(0, iter_max):
         new_value, solution2 = try_swap2(solution, node_count, points,cx_hull)
         if new_value < current_value:
@@ -155,9 +156,12 @@ def ls_solution_given_init2(node_count, points, solution):
     current_value = tour_length(node_count, points, solution)
     cx_hull = cx_indices(points,node_count)
 
-    iter_max = 10000
+    iter_max = ITER_MAX
     for i in range(0, iter_max):
-        new_value, solution2 = try_swap(solution, node_count, points)
+        if random.randint(0,1)==0:
+            new_value, solution2 = try_swap2(solution,node_count, points,[])
+        else:
+            new_value, solution2 = try_swap(solution,node_count, points)
         if new_value < current_value:
             # print new_value
             current_value, solution = new_value, solution2
@@ -314,26 +318,46 @@ def swap_range(c1, c2,  node_count, solution):
     solution2 = [solution[i] for i in range(0, c1+1)]
     for i in range(c2, node_count):
         solution2.append(solution[i])
-    for i in range(c1+1, c2):
-        solution2.append(solution[i])
+    inverse = random.randint(0,1)
+    if inverse == 0:
+        for i in range(c1+1, c2):
+                solution2.append(solution[i])
+    else:
+        for i in range(c1+1, c2):
+            solution2.append(solution[c2 + c1 - i])
+
     return solution2
 
 
 def try_swap2(solution,node_count, points,cx_hull):
+
     a = random.random()
-    cx_point = random.randint(0,len(cx_hull)-1)
-    start = solution.index(cx_hull[cx_point])
-    if cx_point == len(cx_hull)-1:
-        end = node_count
+    if cx_hull:
+        cx_point = random.randint(0,len(cx_hull)-1)
+        start = solution.index(cx_hull[cx_point])
+        if cx_point == len(cx_hull)-1:
+            end = node_count - 1
+        else:
+            end = solution.index(cx_hull[cx_point+1]) + 1
+        if end > node_count - 1:
+            end = node_count - 1
+
+
     else:
-        end = solution.index(cx_hull[cx_point+1])
-    if a < 0.5:
-        if end - 2 > start:
-            c1 = random.randint(start + 1, end-2)
-            c2 = random.randint(c1+1,end-1)
+        start = -1
+        end = node_count - 1
+    if a < 0.8:
+        if end - 2 >= start:
+            if end - 2 == start:
+                c1 = start + 1
+                c2 = c1 + 1
+            else:
+                c1 = random.randint(start + 1, end-2)
+                c2 = random.randint(c1+1,end-1)
             before = random.random()
             if before<0.5:
                 c3 = random.randint(0,c1)
+                #print("c1 " + str(c1) + " c2 " + str(c2) + " c3 " + str(c3))
                 solution2 = swap_2_ranges(c1, c2, c3,node_count, solution,True)
             else:
                 if c2 < node_count-2:

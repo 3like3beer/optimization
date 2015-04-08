@@ -33,16 +33,19 @@ def solve_it(input_data):
 
 def get_opt(node_count):
     opt = {"50":6,"70":17,"100":15,"250":73,"500":12,"1000":88}
-    return opt[str(node_count)]
+    if node_count in opt.keys():
+        return opt[str(node_count)]
+    else:
+        return 0
 
 def pulp_solve(node_count,edges,opt):
     coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
     color_set = range(0,node_count)
     is_color =  [[pulp.LpVariable("x_col" + str(color) + "_node" + str(node) , 0,1, 'Binary') for color in color_set] for node in color_set]
-    obj = pulp.LpVariable("objective",opt-1,opt+1,'Integer')
-    objective = pulp.LpAffineExpression(obj)
-    coloring.setObjective(objective)
-
+    #obj = pulp.LpVariable("objective",opt-1,opt+1,'Integer')
+    #objective = pulp.LpAffineExpression(obj)
+    #coloring.setObjective(objective)
+    coloring += sum([sum(is_color[color]) * sum(is_color[color]) for color in color_set])
     for color in color_set:
         for node in color_set:
             coloring += node * is_color[color][node] <= obj
@@ -50,7 +53,7 @@ def pulp_solve(node_count,edges,opt):
         for e in edges:
             coloring += is_color[e[0]][color] + is_color[e[1]][color] <= 1
         coloring += is_color[0][0] == 1
-    #print(coloring)
+    print(coloring)
     coloring.solve(pulp.PULP_CBC_CMD(maxSeconds= 1000))
 
     out = []
@@ -59,7 +62,7 @@ def pulp_solve(node_count,edges,opt):
             if is_color[node][color].value()>0.5:
                 #print ("col" + str(color) + "node" + str(node))
                 out.append(color)
-    #print out
+    print out
     return out
 
 import sys
