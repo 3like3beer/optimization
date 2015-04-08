@@ -88,7 +88,7 @@ def pulp_solve(node_count,edges,opt):
     color_set = range(0,node_count)
     node_set = range(0,node_count)
     is_color =  [[pulp.LpVariable("x_col" + str(c) + "_node" + str(n) , 0,1, 'Binary') for c in color_set] for n in node_set]
-    obj = pulp.LpVariable("objective",opt-1,opt+1,'Integer')
+    obj = pulp.LpVariable("objective",opt,opt+10,'Integer')
     objective = pulp.LpAffineExpression(obj)
     coloring.setObjective(objective)
 
