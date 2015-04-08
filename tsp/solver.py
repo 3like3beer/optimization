@@ -8,7 +8,7 @@ import pulp
 from collections import namedtuple
 # from openopt import *
 #import networkx as nx
-ITER_MAX = 2000000
+ITER_MAX = 200000
 
 Point = namedtuple("Point", ['x', 'y'])
 
@@ -156,7 +156,7 @@ def ls_solution_given_init2(node_count, points, solution):
     current_value = tour_length(node_count, points, solution)
     cx_hull = cx_indices(points,node_count)
 
-    iter_max = ITER_MAX
+    iter_max = ITER_MAX * 20
     for i in range(0, iter_max):
         if random.randint(0,1)==0:
             new_value, solution2 = try_swap2(solution,node_count, points,[])

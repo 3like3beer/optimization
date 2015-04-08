@@ -48,8 +48,8 @@ class Graph:
 
 def get_opt(node_count):
     opt = {"50":6,"70":17,"100":15,"250":73,"500":12,"1000":88}
-    print str((node_count))
-    print (opt.keys())
+
+    #print (opt.keys())
     if str(node_count) in opt.keys():
         return opt[str(node_count)]
     else:
@@ -83,7 +83,8 @@ def dfs(graph,root):
             dfs(graph,v)
 
 def pulp_solve(node_count,edges,opt):
-    print (opt)
+    print ("opt" +  str(opt))
+    print(node_count)
     coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
     color_set = range(0,node_count)
     node_set = range(0,node_count)
@@ -91,11 +92,12 @@ def pulp_solve(node_count,edges,opt):
     obj = pulp.LpVariable("objective",opt,opt+10,'Integer')
     objective = pulp.LpAffineExpression(obj)
     coloring.setObjective(objective)
+    print(obj)
 
 
-    for color in color_set:
-        for node in color_set:
-            coloring += node * is_color[color][node] <= obj
+    for color in node_set:
+        for c in color_set:
+            coloring += c * is_color[color][c] <= obj
         coloring += sum(is_color[color][v] for v in color_set) == 1
         for e in edges:
             coloring += is_color[e[0]][color] + is_color[e[1]][color] <= 1
@@ -114,7 +116,7 @@ def pulp_solve(node_count,edges,opt):
     #coloring += is_color[0][0] == 1
 
     #print(coloring)
-    coloring.solve(pulp.GLPK_CMD())
+    coloring.solve(pulp.PULP_CBC_CMD())
 
     out = []
     for n in node_set:
