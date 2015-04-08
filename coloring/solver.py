@@ -121,7 +121,7 @@ def pulp_solve(node_count,edges,opt):
         for c in color_set:
             if is_color[n][c].value()>0.5:
                 #print ("col" + str(color) + "node" + str(node))
-                out.append(n)
+                out.append(c)
         # print([is_color[c][n] for n in color_set])
         # print([is_color[c][n].value() for n in color_set])
     #print out
