@@ -21,8 +21,6 @@ def solve_it(input_data):
     # build a trivial solution
     # every node has its own color
     #solution = range(0, node_count)
-
-
     solution = pulp_solve(node_count,edges,get_opt(node_count))
 
     # prepare the solution in the specified output format
@@ -31,37 +29,95 @@ def solve_it(input_data):
 
     return output_data
 
+class Vertex:
+    def  __init__(self, name):
+        self.name = name
+        self.adjacent = []
+        self.color = 0
+
+    def add_adjacent(self,v):
+        self.adjacent.append(v)
+
+
+class Graph:
+    def __init__(self, node_count, edges):
+        self.vertices = [Vertex(i) for i in range(0,node_count)]
+        for e in edges:
+            self.vertices[e[0]].add_adjacent(self.vertices[e[1]])
+
+
 def get_opt(node_count):
     opt = {"50":6,"70":17,"100":15,"250":73,"500":12,"1000":88}
-    if node_count in opt.keys():
+    print str((node_count))
+    print (opt.keys())
+    if str(node_count) in opt.keys():
         return opt[str(node_count)]
     else:
-        return 0
+        return node_count
+
+
+def objective_value(is_color,color_set):
+     return sum([sum(is_color[color]) * sum(is_color[color]) for color in color_set])
+
+
+def ls_solve(node_count,edges,opt):
+    graph = Graph(node_count,edges)
+    node_set = range(0,node_count)
+    color_set = range(0,get_opt(node_count))
+    root = graph.vertices[0]
+    color = 0
+    dfs(graph,root)
+    is_color =  [[0 for color in color_set] for node in node_set]
+    is_color[0][0] == 1
+    for node in node_set:
+        for color in color_set:
+            node * is_color[color][node]
+
+
+
+def dfs(graph,root):
+    visited = [False for i in graph.vertices]
+    visited[root] = True
+    for v in root.adjacents:
+        if not(visited[v]):
+            dfs(graph,v)
 
 def pulp_solve(node_count,edges,opt):
     coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
-    color_set = range(0,node_count)
-    is_color =  [[pulp.LpVariable("x_col" + str(color) + "_node" + str(node) , 0,1, 'Binary') for color in color_set] for node in color_set]
-    #obj = pulp.LpVariable("objective",opt-1,opt+1,'Integer')
-    #objective = pulp.LpAffineExpression(obj)
-    #coloring.setObjective(objective)
-    coloring += sum([sum(is_color[color]) * sum(is_color[color]) for color in color_set])
-    for color in color_set:
-        for node in color_set:
+    color_set = range(0,opt + 1)
+    node_set = range(0,node_count)
+    is_color =  [[pulp.LpVariable("x_col" + str(color) + "_node" + str(node) , 0,1, 'Binary') for node in node_set] for color in color_set]
+    print("opt " + str(opt))
+    obj = pulp.LpVariable("objective",opt-1,opt+1,'Integer')
+    objective = pulp.LpAffineExpression(obj)
+    coloring.setObjective(objective)
+    #coloring += sum([sum(is_color[color]) * sum(is_color[color]) for color in color_set])
+    for node in node_set:
+        for color in color_set:
             coloring += node * is_color[color][node] <= obj
-        coloring += sum(is_color[color][v] for v in color_set) == 1
-        for e in edges:
-            coloring += is_color[e[0]][color] + is_color[e[1]][color] <= 1
+        coloring += sum(is_color[color][node] for color in color_set) == 1
+        #for e in edges:
+        #    coloring += is_color[e[0]][color] + is_color[e[1]][color] <= 1
         coloring += is_color[0][0] == 1
+
+        for e in edges:
+            coloring += is_color[color][e[0]] + is_color[color][e[1]] <= 1
+
+        #coloring += sum(is_color[color][node] for color in color_set) == 1
+
     print(coloring)
-    coloring.solve(pulp.PULP_CBC_CMD(maxSeconds= 1000))
+    coloring.solve()
 
     out = []
-    for node in color_set:
+    for node in node_set:
+        found = False
         for color in color_set:
-            if is_color[node][color].value()>0.5:
-                #print ("col" + str(color) + "node" + str(node))
+            if is_color[color][node].value()>0.5 and not found:
                 out.append(color)
+                found =True
+        if not(found):
+            print([is_color[color][node] for color in color_set])
+
     print out
     return out
 
