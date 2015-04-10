@@ -1,5 +1,5 @@
 from unittest import TestCase
-from coloring.solver import Vertex
+from solver import Vertex
 __author__ = 'ruizj'
 
 

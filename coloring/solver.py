@@ -47,6 +47,7 @@ class Vertex:
         self.color = color
 
     def get_dsat(self):
+        return sum([x.color for x in self.adjacent])
 
 
 class Graph:
@@ -55,7 +56,7 @@ class Graph:
         for e in edges:
             self.vertices[e[0]].add_adjacent(self.vertices[e[1]])
         # Ordonner les sommets par ordre décroissant de degré.
-        self.sorted_vertices = sorted(self.vertices,key=lambda x: x.color)
+        self.sorted_vertices = sorted(self.vertices,key=lambda x: (x.color,x.get_dsat()))
 
 
 def get_opt(node_count):

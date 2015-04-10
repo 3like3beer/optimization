@@ -1,5 +1,5 @@
 from unittest import TestCase
-from coloring.solver import Graph
+from solver import Graph
 
 __author__ = 'ruizj'
 
