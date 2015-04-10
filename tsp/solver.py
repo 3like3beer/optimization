@@ -162,7 +162,7 @@ def ls_solution_given_init2(node_count, points, solution):
     current_value = tour_length(node_count, points, solution)
     cx_hull = cx_indices(points,node_count)
 
-    iter_max = ITER_MAX * 20
+    iter_max = ITER_MAX * 200
     for i in range(0, iter_max):
         if random.randint(0,1)==0:
             new_value, solution2 = try_swap2(solution,node_count, points,[])
