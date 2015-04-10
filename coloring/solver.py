@@ -43,13 +43,19 @@ class Vertex:
         v.adjacent.append(self)
         v.degree += 1
 
+    def color(self, color):
+        self.color = color
+
+    def get_dsat(self):
+
 
 class Graph:
     def __init__(self, node_count, edges):
         self.vertices = [Vertex(i) for i in range(0,node_count)]
         for e in edges:
             self.vertices[e[0]].add_adjacent(self.vertices[e[1]])
-        self.sorted_vertices = sorted(self.vertices,key =self.vertices.color)
+        # Ordonner les sommets par ordre décroissant de degré.
+        self.sorted_vertices = sorted(self.vertices,key=lambda x: x.color)
 
 
 def get_opt(node_count):
@@ -65,10 +71,6 @@ def get_opt(node_count):
 def objective_value(is_color,color_set):
      return sum([sum(is_color[color]) * sum(is_color[color]) for color in color_set])
 
-# Ordonner les sommets par ordre décroissant de degré.
-def sort_vertices(graph):
-    pass
-
 
 def choose_next_vertex(sorted_vertices):
     return min(sorted_vertices)
@@ -82,10 +84,11 @@ def color_vertex(v, sorted_vertices):
 def dsatur_solve(node_count,edges):
     graph = Graph(node_count,edges)
     # 1.Ordonner les sommets par ordre décroissant de degré.
-    sorted_vertices = sort_vertices(graph)
+    sorted_vertices = graph.sorted_vertices
 
     # 2.Colorer un des sommets de degré maximum avec la couleur 1.
-    sorted_vertices[0].color = 1
+    i = 0
+    sorted_vertices[i].color(1)
 
     # 3.Choisir un sommet non coloré avec DSAT maximum (nombre de couleurs différentes dans les sommets adjacents à v).
     # En cas d'égalité, choisir un sommet de degré maximal.
