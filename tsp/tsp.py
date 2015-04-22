@@ -11,6 +11,7 @@ import math
 from collections import namedtuple
 from openopt import *
 import networkx as nx
+from openopt.oo import TSP
 
 Point = namedtuple("Point", ['x', 'y'])
 

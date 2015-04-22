@@ -58,8 +58,8 @@ def open_facility(f, assigned, solution, capacustomer_remaining):
                 capacustomer_remaining[solution[c.index]] += c.demand
             solution[c.index] = f.index
             capacustomer_remaining[f.index] -= c.demand
-            # print "Opening Facility " + str(f.index) + " assigning " + to_string(
-            #    [c.index for c in assigned]) + " To assign " + to_string(get_unconnected(solution))
+            #print "Opening Facility " + str(f.index) + " assigning " + to_string(
+            #   [c.index for c in assigned]) + " To assign " + to_string(get_unconnected(solution))
 
 
 def to_string(list):
@@ -154,11 +154,12 @@ def local_greedy2(customers, facilities):
 
 
 def local_greedy(customers, facilities):
-    nb = 10
+    nb = 5
     i = 0
     min_cost = 10000000000000000
     while i < nb:
-        if i % (nb / 10) == 0:
+
+        if nb>10 and i % (nb / 10) == 0:
             print "nb " + str(i) + "/ " + str(nb)
         solution, used = greedy_solution(customers, facilities)
         cur_cost = solution_cost(customers, facilities, solution, used)
@@ -172,7 +173,7 @@ def local_greedy(customers, facilities):
 
 
 def greedy_solution(customers, facilities):
-    rate = 1000
+    rate = 10000
     # 1. At the beginning, all customers are unconnected,
     solution = [-1] * len(customers)
     # all facilities are unopened,
@@ -199,7 +200,6 @@ def greedy_solution(customers, facilities):
                 for f in shuffle_facilities:
                     used = create_use_list(facilities, solution)
                     if used[f.index] < 1:
-                        # and f.index<> 1 and f.index<> 16 and f.index<> 22 and f.index<> 29 and f.index<> 55 and f.index<> 61
                         # (a) For some unopened facility i, the total offer that it receives from customers is equal to the cost of opening i.
                         # In this case, we open facility i,
                         # and for every customer j (connected or unconnected) which has a non-zero offer to i, we connect j to i.
@@ -207,7 +207,7 @@ def greedy_solution(customers, facilities):
                         unconnected = get_unconnected(solution)
                         if not unconnected:
                             used = create_use_list(facilities, solution)
-                            return solution, used  #opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+                            return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
                             #print ("unconnected 1 " + to_string(unconnected))
                     else:
                         unconnected = get_unconnected(solution)
@@ -218,7 +218,7 @@ def greedy_solution(customers, facilities):
                             # the budget of j is equal to the connection cost cij.
                             # In this case, we connect j to i.
                             if solution[uc] < -0.5:
-                                if B[uc] >= cost(customers[uc], f):
+                                if B[uc] >= cost(customers[uc], f): #and used[f.index] > 0.5:
                                     if capacustomer_remaining[f.index] > customers[uc].demand:
                                         #print "connect customer " + str(uc) + " to facility " + str(f.index)
                                         #print "Current solution " + str(solution)
@@ -226,12 +226,12 @@ def greedy_solution(customers, facilities):
                                         capacustomer_remaining[f.index] -= customers[uc].demand
                         if not unconnected:
                             used = create_use_list(facilities, solution)
-                            return solution, used  #opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+                            return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
             unconnected = get_unconnected(solution)
             # print ("unconnected " + to_string(unconnected))
             #print B
     used = create_use_list(facilities, solution)
-    return solution, used  # opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+    return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
 
 
 def trivial_solution(customers, facilities):
@@ -301,7 +301,7 @@ def solve_it(input_data):
         parts = lines[i].split()
         customers.append(Customer(i - 1 - facility_count, int(parts[0]), Point(float(parts[1]), float(parts[2]))))
 
-    solution, used = local_greedy(customers, facilities)
+    solution, used = local_greedy2(customers, facilities)
 
     obj = solution_cost(customers, facilities, solution, used)
 
