@@ -13,6 +13,7 @@ from collections import namedtuple
 Metadata = namedtuple("Metadata", ['url', 'name', 'part_data'])
 Part = namedtuple("Part", ['sid', 'input_file', 'source', 'name'])
 
+
 def check_login(metadata, login, password):
     sid = 'B5DXTczU-dev'
     submission = '0'
@@ -20,14 +21,14 @@ def check_login(metadata, login, password):
 
     print '== Checking Login Credentials ... '
     (login, ch, state, ch_aux) = get_challenge(metadata.url, login, sid)
-    if((not login) or (not ch) or (not state)):
+    if ((not login) or (not ch) or (not state)):
         print '\n!! Error: %s\n' % login
         return
     ch_resp = challenge_response(login, password, ch)
     (result, string) = submit_solution(metadata.url, login, ch_resp, sid, submission, source, state, ch_aux)
     if string.strip() == 'password verified':
         print '== credentials verified'
-    else :
+    else:
         print '\n!! login failed'
         print '== %s' % string.strip()
         quit()
@@ -36,18 +37,18 @@ def check_login(metadata, login, password):
 def load_meta_data():
     try:
         metadata_file = open('_metadata', 'r')
-        
+
         url = metadata_file.readline().strip()
         name = metadata_file.readline().strip()
         part_count = int(metadata_file.readline().strip())
         part_data = []
-        for i in range(0,part_count):
+        for i in range(0, part_count):
             line = metadata_file.readline().strip()
             line_parts = line.split(',')
             line_parts = [x.strip() for x in line_parts]
-            assert(len(line_parts) == 4)
+            assert (len(line_parts) == 4)
             part_data.append(Part(*line_parts))
-            
+
         metadata_file.close()
     except Exception, e:
         print 'problem parsing assignment metadata file'
@@ -55,24 +56,24 @@ def load_meta_data():
         print e
         quit()
     return Metadata(url, name, part_data)
-    
-    
+
+
 def submit():
     metadata = load_meta_data()
-    #print metadata
-    
-    print '==\n==',metadata.name,'Solution Submission \n=='
+    # print metadata
+
+    print '==\n==', metadata.name, 'Solution Submission \n=='
 
     (login, password) = login_prompt()
     if not login:
         print '!! Submission Cancelled'
         return
-    
+
     print '\n== Connecting to Coursera ... '
     check_login(metadata, login, password)
 
     selected_parts = part_prompt(metadata.part_data)
-    
+
     for part in selected_parts:
         (login, ch, state, ch_aux) = get_challenge(metadata.url, login, part.sid)
         if not login or not ch or not state:
@@ -81,7 +82,8 @@ def submit():
         submission = output(part)
 
         ch_resp = challenge_response(login, password, ch)
-        (result, string) = submit_solution(metadata.url, login, ch_resp, part.sid, submission, get_source(part.source), state, ch_aux)
+        (result, string) = submit_solution(metadata.url, login, ch_resp, part.sid, submission, get_source(part.source),
+                                           state, ch_aux)
 
         print '== %s' % string.strip()
 
@@ -94,7 +96,7 @@ def login_prompt():
 
 def basic_prompt():
     """Prompt the user for login credentials. Returns a tuple (login, password)."""
-    #login = raw_input('Login (Email address): ')
+    # login = raw_input('Login (Email address): ')
     #password = raw_input('Submission Password (from the programming assignments page. This is NOT your own account\'s password): ')
     return ("les.ruiz@gmail.com", "qrxpR9Rbh5")
 
@@ -102,10 +104,10 @@ def basic_prompt():
 def part_prompt(parts):
     print 'Hello! These are the assignment parts that you can submit:'
     for i, part in enumerate(parts):
-        print str(i+1) + ') ' + part.name
+        print str(i + 1) + ') ' + part.name
     print '0) All'
 
-    part_text = raw_input('Please enter which part(s) you want to submit (0-'+ str(len(parts)) + '): ')
+    part_text = raw_input('Please enter which part(s) you want to submit (0-' + str(len(parts)) + '): ')
     selected_parts = []
 
     for item in part_text.split(','):
@@ -148,7 +150,7 @@ def get_challenge(c_url, email, sid):
 
 def challenge_response(email, passwd, challenge):
     sha1 = hashlib.sha1()
-    sha1.update(''.join([challenge, passwd])) 
+    sha1.update(''.join([challenge, passwd]))
     digest = sha1.hexdigest()
     strAnswer = ''
     for i in range(0, len(digest)):
@@ -175,7 +177,7 @@ def submit_solution(c_url, email_address, ch_resp, sid, output, source, state, c
     output_64_msg = email.message.Message()
     output_64_msg.set_payload(output)
     email.encoders.encode_base64(output_64_msg)
-    values = { 
+    values = {
         'assignment_part_sid': sid,
         'email_address': email_address,
         # 'submission' : output, \
@@ -184,7 +186,7 @@ def submit_solution(c_url, email_address, ch_resp, sid, output, source, state, c
         'submission_aux': source_64_msg.get_payload(),
         'challenge_response': ch_resp,
         'state': state,
-        }
+    }
     url = submit_url(c_url)
     data = urllib.urlencode(values)
     req = urllib2.Request(url, data)
@@ -196,7 +198,7 @@ def submit_solution(c_url, email_address, ch_resp, sid, output, source, state, c
 
 def get_source(source_file):
     """Collects the source code (just for logging purposes)."""
-    f = open(source_file,'r')
+    f = open(source_file, 'r')
     src = f.read()
     f.close()
     return src
@@ -218,6 +220,7 @@ def load_input_data(fileLocation):
     inputData = ''.join(inputDataFile.readlines())
     inputDataFile.close()
     return inputData
+
 
 def output(part):
     """Use student code to compute the output for test cases."""

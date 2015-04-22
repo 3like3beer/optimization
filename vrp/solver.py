@@ -3,18 +3,21 @@
 
 import math
 from collections import namedtuple
+
 import pulp
+
 
 Customer = namedtuple("Customer", ['index', 'demand', 'x', 'y'])
 
-def length(customer1, customer2):
-    return math.sqrt((customer1.x - customer2.x)**2 + (customer1.y - customer2.y)**2)
+
+def dist(customer1, customer2):
+    return math.sqrt((customer1.x - customer2.x) ** 2 + (customer1.y - customer2.y) ** 2)
 
 
 def trivial_solution(customers, vehicle_capacity, vehicle_count):
-    depot = customers[0]
     # build a trivial solution
     # assign customers to vehicles starting by the largest customer demands
+    depot = customers[0]
     vehicle_tours = []
     remaining_customers = set(customers)
     remaining_customers.remove(depot)
@@ -41,27 +44,38 @@ def cost(depot, vehicle_count, vehicle_tours):
     for v in range(0, vehicle_count):
         vehicle_tour = vehicle_tours[v]
         if len(vehicle_tour) > 0:
-            obj += length(depot, vehicle_tour[0])
+            obj += dist(depot, vehicle_tour[0])
             for i in range(0, len(vehicle_tour) - 1):
-                obj += length(vehicle_tour[i], vehicle_tour[i + 1])
-            obj += length(vehicle_tour[-1], depot)
+                obj += dist(vehicle_tour[i], vehicle_tour[i + 1])
+            obj += dist(vehicle_tour[-1], depot)
 
     return obj
 
-def build_variable(node_in,node_out):
+
+def build_variable(node_in, node_out):
     if node_in > node_out:
-        return pulp.LpVariable("x_in" + str(node_in) + "_out" + str(node_out) , 0,1, 'Binary')
+        return pulp.LpVariable("x_in" + str(node_in) + "_out" + str(node_out), 0, 1, 'Binary')
     else:
         return 0.0
 
-def pulp_solution(points,node_count):
-    model = pulp.LpProblem("Model", pulp.LpMinimize)
-    node_set = range(0,node_count)
-    out_edges =  [[build_variable(node_in,node_out) for node_in in node_set] for node_out in node_set]
-    model+= sum([sum([out_edges[node_in][node_out]*length(points[node_in], points[node_out]) for node_in in node_set ]) for node_out in node_set])
 
-    for node in node_set:
-        model += sum(out_edges[node][v] for v in node_set) + sum(out_edges[v][node] for v in node_set) == 2
+def pulp_solution(customers, vehicle_capacity, vehicle_count):
+    depot = customers[0]
+    vehicle_tours = []
+    remaining_customers = set(customers)
+    remaining_customers.remove(depot)
+    model = pulp.LpProblem("Model", pulp.LpMinimize)
+    vehicles = range(0, vehicle_count)
+    T = []
+    for v in vehicles:
+        T.append([])
+    model += sum(
+        [dist(depot, T[i][0]) + sum([dist(j, k) + dist(T[i][len(T[i] - 1)]) for j in vehicles for k in vehicles]) for i
+         in vehicles])
+
+    for i in vehicles:
+        model += sum(d[j] for j in T[i]) <= c
+
     model.solve()
 
 
@@ -75,14 +89,14 @@ def solve_it(input_data):
     customer_count = int(parts[0])
     vehicle_count = int(parts[1])
     vehicle_capacity = int(parts[2])
-    
+
     customers = []
-    for i in range(1, customer_count+1):
+    for i in range(1, customer_count + 1):
         line = lines[i]
         parts = line.split()
-        customers.append(Customer(i-1, int(parts[0]), float(parts[1]), float(parts[2])))
+        customers.append(Customer(i - 1, int(parts[0]), float(parts[1]), float(parts[2])))
 
-    #the depot is always the first customer in the input
+    # the depot is always the first customer in the input
     depot = customers[0]
 
     vehicle_tours = trivial_solution(customers, vehicle_capacity, vehicle_count)
@@ -96,7 +110,8 @@ def solve_it(input_data):
     # prepare the solution in the specified output format
     outputData = str(obj) + ' ' + str(0) + '\n'
     for v in range(0, vehicle_count):
-        outputData += str(depot.index) + ' ' + ' '.join([str(customer.index) for customer in vehicle_tours[v]]) + ' ' + str(depot.index) + '\n'
+        outputData += str(depot.index) + ' ' + ' '.join(
+            [str(customer.index) for customer in vehicle_tours[v]]) + ' ' + str(depot.index) + '\n'
 
     return outputData
 
