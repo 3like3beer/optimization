@@ -74,7 +74,10 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
          in vehicles])
 
     for i in vehicles:
-        model += sum(d[j] for j in T[i]) <= c
+        model += sum(customers[j].demand for j in T[i]) <= vehicle_capacity
+
+    for j in range(1, len(customers)):
+        model += sum(1 for p in T[i] if j == p) == 1
 
     model.solve()
 
