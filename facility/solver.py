@@ -4,7 +4,9 @@
 from collections import namedtuple
 from random import shuffle
 import math
+
 import pulp
+
 
 Point = namedtuple("Point", ['x', 'y'])
 Facility = namedtuple("Facility", ['index', 'setup_cost', 'capacustomer', 'location'])
@@ -173,7 +175,7 @@ def local_greedy(customers, facilities):
 
 
 def greedy_solution(customers, facilities):
-    rate = 10000
+    rate = 100000
     # 1. At the beginning, all customers are unconnected,
     solution = [-1] * len(customers)
     # all facilities are unopened,

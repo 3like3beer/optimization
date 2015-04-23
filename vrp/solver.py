@@ -52,34 +52,61 @@ def cost(depot, vehicle_count, vehicle_tours):
     return obj
 
 
-def build_variable(node_in, node_out):
-    if node_in > node_out:
-        return pulp.LpVariable("x_in" + str(node_in) + "_out" + str(node_out), 0, 1, 'Binary')
+def build_variable(vehicle, customer):
+    if customer == 0:
+        return 1
     else:
-        return 0.0
+        return pulp.LpVariable("x_veh" + str(vehicle) + "_out" + str(customer), 0, 1, 'Binary')
+
+
+def list_served(Ti):
+    served = []
+    for k, i in enumerate(Ti):
+        if k == 0:
+            served.append(k)
+        else:
+            if i == 1:
+                served.append(k)
+    return served
+
+
+def build_tours(T, customers, vehicle_count):
+    vehicle_tours = []
+    for v in range(0, vehicle_count):
+        vehicle_tours.append([])
+        for c in range(1, len(customers) - 1):
+            if T[v][c].value() > 0.5:
+                vehicle_tours[v].append(c)
+        print "v " + str(v) + " tour : " + str(vehicle_tours[v])
+    return vehicle_tours
 
 
 def pulp_solution(customers, vehicle_capacity, vehicle_count):
+    print([c.index for c in customers])
     depot = customers[0]
     vehicle_tours = []
     remaining_customers = set(customers)
     remaining_customers.remove(depot)
     model = pulp.LpProblem("Model", pulp.LpMinimize)
     vehicles = range(0, vehicle_count)
-    T = []
-    for v in vehicles:
-        T.append([])
+    T = [[build_variable(v, c) for c in range(1, len(customers))] for v in vehicles]
+
     model += sum(
-        [dist(depot, T[i][0]) + sum([dist(j, k) + dist(T[i][len(T[i] - 1)]) for j in vehicles for k in vehicles]) for i
+        [dist(depot, customers[list_served(T[i])[0]]) + sum(
+            [dist(customers[j], customers[k]) + dist(customers[list_served(T[i])[len(list_served(T[i])) - 1]], depot)
+             for j in list_served(T[i]) for k in list_served(T[i])]) for i
          in vehicles])
 
     for i in vehicles:
-        model += sum(customers[j].demand for j in T[i]) <= vehicle_capacity
+        model += sum(customers[j].demand for j in list_served(T[i])) <= vehicle_capacity
 
-    for j in range(1, len(customers)):
-        model += sum(1 for p in T[i] if j == p) == 1
+    for j in range(1, len(customers) - 1):
+        model += sum(T[i][j] for i in vehicles) == 1
 
     model.solve()
+
+    vehicle_tours = build_tours(T, customers, vehicle_count)
+    return vehicle_tours
 
 
 def solve_it(input_data):
@@ -102,9 +129,11 @@ def solve_it(input_data):
     # the depot is always the first customer in the input
     depot = customers[0]
 
-    vehicle_tours = trivial_solution(customers, vehicle_capacity, vehicle_count)
-
+    vehicle_tours = pulp_solution(customers, vehicle_capacity, vehicle_count)
+    print(vehicle_tours)
     # checks that the number of customers served is correct
+    print sum([len(v) for v in vehicle_tours])
+    print len(customers - 1)
     assert sum([len(v) for v in vehicle_tours]) == len(customers) - 1
 
     # calculate the cost of the solution; for each vehicle the length of the route
