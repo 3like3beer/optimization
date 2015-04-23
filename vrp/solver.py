@@ -74,22 +74,23 @@ def build_tours(T, customers, vehicle_count):
     vehicle_tours = []
     for v in range(0, vehicle_count):
         vehicle_tours.append([])
-        for c in range(1, len(customers) - 1):
+        for c in range(1, len(customers)):
             if T[v][c].value() > 0.5:
-                vehicle_tours[v].append(c)
-        print "v " + str(v) + " tour : " + str(vehicle_tours[v])
+                vehicle_tours[v].append(customers[c])
+        print "v " + str(v) + " tour : " + str([c.index for c in vehicle_tours[v]])
     return vehicle_tours
 
 
 def pulp_solution(customers, vehicle_capacity, vehicle_count):
-    print([c.index for c in customers])
+    print "customers " + str([c.index for c in customers])
+    print "demand " + str([c.demand for c in customers])
     depot = customers[0]
     vehicle_tours = []
     remaining_customers = set(customers)
     remaining_customers.remove(depot)
     model = pulp.LpProblem("Model", pulp.LpMinimize)
     vehicles = range(0, vehicle_count)
-    T = [[build_variable(v, c) for c in range(1, len(customers))] for v in vehicles]
+    T = [[build_variable(v, c) for c in range(0, len(customers))] for v in vehicles]
 
     model += sum(
         [dist(depot, customers[list_served(T[i])[0]]) + sum(
@@ -98,14 +99,17 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
          in vehicles])
 
     for i in vehicles:
-        model += sum(customers[j].demand for j in list_served(T[i])) <= vehicle_capacity
+        model += sum(customers[c].demand * is_served for c, is_served in enumerate((T[i]))) <= vehicle_capacity
 
-    for j in range(1, len(customers) - 1):
+    for j in range(1, len(customers)):
         model += sum(T[i][j] for i in vehicles) == 1
 
     model.solve()
 
     vehicle_tours = build_tours(T, customers, vehicle_count)
+    print vehicle_capacity
+    print ([sum(j.demand for j in t) for t in vehicle_tours])
+
     return vehicle_tours
 
 
@@ -130,10 +134,7 @@ def solve_it(input_data):
     depot = customers[0]
 
     vehicle_tours = pulp_solution(customers, vehicle_capacity, vehicle_count)
-    print(vehicle_tours)
     # checks that the number of customers served is correct
-    print sum([len(v) for v in vehicle_tours])
-    print len(customers - 1)
     assert sum([len(v) for v in vehicle_tours]) == len(customers) - 1
 
     # calculate the cost of the solution; for each vehicle the length of the route
