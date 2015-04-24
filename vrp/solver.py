@@ -52,11 +52,8 @@ def cost(depot, vehicle_count, vehicle_tours):
     return obj
 
 
-def build_variable(vehicle, customer):
-    if customer == 0:
-        return 1
-    else:
-        return pulp.LpVariable("x_veh" + str(vehicle) + "_out" + str(customer), 0, 1, 'Binary')
+def build_variable(c_in, c_out, v):
+    return pulp.LpVariable("x_veh" + str(v) + "_in" + str(c_in) + "_out" + str(c_out), 0, 1, 'Binary')
 
 
 def list_served(Ti):
@@ -81,6 +78,13 @@ def build_tours(T, customers, vehicle_count):
     return vehicle_tours
 
 
+def build_variable2(vehicle, customer):
+    if customer == 0:
+        return 1
+    else:
+        return pulp.LpVariable("x_veh" + str(vehicle) + "_out" + str(customer), 0, 1, 'Binary')
+
+
 def pulp_solution(customers, vehicle_capacity, vehicle_count):
     print "customers " + str([c.index for c in customers])
     print "demand " + str([c.demand for c in customers])
@@ -90,13 +94,23 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
     remaining_customers.remove(depot)
     model = pulp.LpProblem("Model", pulp.LpMinimize)
     vehicles = range(0, vehicle_count)
-    T = [[build_variable(v, c) for c in range(0, len(customers))] for v in vehicles]
+    cs = range(0, len(customers))
+    T = [[build_variable2(v, c) for c in range(0, len(customers))] for v in vehicles]
+
+    out_edges = [[[build_variable(c_in, c_out, v) for c_in in cs] for c_out in cs] for v in vehicles]
 
     model += sum(
         [dist(depot, customers[list_served(T[i])[0]]) + sum(
             [dist(customers[j], customers[k]) + dist(customers[list_served(T[i])[len(list_served(T[i])) - 1]], depot)
              for j in list_served(T[i]) for k in list_served(T[i])]) for i
          in vehicles])
+
+
+    model += sum(
+        sum(
+            [sum([out_edges[v][c_in][c_out] * dist(customers[c_in], customers[c_out]) for c_in in cs])
+             for c_out in cs])
+        for v in vehicles)
 
     for i in vehicles:
         model += sum(customers[c].demand * is_served for c, is_served in enumerate((T[i]))) <= vehicle_capacity
