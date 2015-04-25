@@ -85,6 +85,10 @@ def build_variable2(vehicle, customer):
         return pulp.LpVariable("x_veh" + str(vehicle) + "_out" + str(customer), 0, 1, 'Binary')
 
 
+def build_int_variable(vehicle, size):
+    return pulp.LpVariable("tour_size_" + str(vehicle), 0, size, 'Binary')
+
+
 def pulp_solution(customers, vehicle_capacity, vehicle_count):
     print "customers " + str([c.index for c in customers])
     print "demand " + str([c.demand for c in customers])
@@ -95,6 +99,14 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
     model = pulp.LpProblem("Model", pulp.LpMinimize)
     vehicles = range(0, vehicle_count)
     cs = range(0, len(customers))
+
+    tours_size = []
+
+    for v in vehicles:
+        tours_size.append(build_int_variable(v, len(customers) - 1))
+
+    model += sum(tours_size) <= len(customers) - 1
+
     T = [[build_variable2(v, c) for c in range(0, len(customers))] for v in vehicles]
 
     out_edges = [[[build_variable(c_in, c_out, v) for c_in in cs] for c_out in cs] for v in vehicles]
