@@ -90,11 +90,7 @@ def build_variables(vehicles, customers):
 
 
 def build_int_variable(vehicle, size):
-    return pulp.LpVariable("tour_size_" + str(vehicle), 0, size, 'Binary')
-
-
-def last_to_depot(v):
-    pass
+    return pulp.LpVariable("tour_size_" + str(vehicle), 0, size, 'Integer')
 
 
 def pulp_solution(customers, vehicle_capacity, vehicle_count):
@@ -133,7 +129,7 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
     model += sum([sum([sum([dist(customers[i], customers[j])
                             for i in T[v][pos] if T[v][pos][i] > 0
                             for j in T[v][pos] if T[v][pos + 1][j] > 0]) for pos in T[v]]) for v in vehicles])
-    + sum([last_to_depot[v] for v in vehicles])
+    + sum([dist(customers[tours_size[v], depot] for v in vehicles])
 
 
     model += sum(
