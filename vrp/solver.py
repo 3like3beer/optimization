@@ -129,7 +129,7 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
     model += sum([sum([sum([dist(customers[i], customers[j])
                             for i in T[v][pos] if T[v][pos][i] > 0
                             for j in T[v][pos] if T[v][pos + 1][j] > 0]) for pos in T[v]]) for v in vehicles])
-    + sum([dist(customers[tours_size[v], depot] for v in vehicles])
+    + sum([dist(customers[tours_size[v]], depot) for v in vehicles])
 
 
     model += sum(
