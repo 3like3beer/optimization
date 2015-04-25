@@ -78,15 +78,23 @@ def build_tours(T, customers, vehicle_count):
     return vehicle_tours
 
 
-def build_variable2(vehicle, customer):
-    if customer == 0:
-        return 1
-    else:
-        return pulp.LpVariable("x_veh" + str(vehicle) + "_out" + str(customer), 0, 1, 'Binary')
+def build_variables(vehicles, customers):
+    for v in vehicles:
+        for position in range(0, len(customers)):
+            for chosen in range(0, len(customers)):
+                if chosen == 0:
+                    return 1
+                else:
+                    return pulp.LpVariable("x_v_" + str(v) + "_pos_" + str(position) + "_c_" + str(chosen), 0, 1,
+                                           'Binary')
 
 
 def build_int_variable(vehicle, size):
     return pulp.LpVariable("tour_size_" + str(vehicle), 0, size, 'Binary')
+
+
+def last_to_depot(v):
+    pass
 
 
 def pulp_solution(customers, vehicle_capacity, vehicle_count):
@@ -105,17 +113,27 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
     for v in vehicles:
         tours_size.append(build_int_variable(v, len(customers) - 1))
 
-    model += sum(tours_size) <= len(customers) - 1
 
-    T = [[build_variable2(v, c) for c in range(0, len(customers))] for v in vehicles]
+    # All tours serves all customer
+    model += sum(tours_size) == len(customers) - 1
+
+
+    #T tour starts at depot ends before 0
+    T = build_variables(vehicles, customers)
+
+    for v in vehicles:
+        #tour_size customers served by each vehicle
+        model += sum([sum(T[v][pos]) for pos in range(1, len(customers))]) == tours_size[v]
+        for pos in range(1, len(customers)):
+            #One customer for the 1st positions then 0 (no gap)
+            model += sum(T[v][pos - 1]) >= sum(T[v][pos])
 
     out_edges = [[[build_variable(c_in, c_out, v) for c_in in cs] for c_out in cs] for v in vehicles]
 
-    model += sum(
-        [dist(depot, customers[list_served(T[i])[0]]) + sum(
-            [dist(customers[j], customers[k]) + dist(customers[list_served(T[i])[len(list_served(T[i])) - 1]], depot)
-             for j in list_served(T[i]) for k in list_served(T[i])]) for i
-         in vehicles])
+    model += sum([sum([sum([dist(customers[i], customers[j])
+                            for i in T[v][pos] if T[v][pos][i] > 0
+                            for j in T[v][pos] if T[v][pos + 1][j] > 0]) for pos in T[v]]) for v in vehicles])
+    + sum([last_to_depot[v] for v in vehicles])
 
 
     model += sum(
