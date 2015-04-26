@@ -71,8 +71,8 @@ def build_tours(T, customers, vehicle_count):
     vehicle_tours = []
     for v in range(0, vehicle_count):
         vehicle_tours.append([])
-        for pos in range(1, len(customers)):
-            for c in range(1, len(customers)):
+        for pos in range(0, len(customers) - 1):
+            for c in range(0, len(customers) - 1):
                 if T[v][pos][c].value() > 0.5:
                     vehicle_tours[v].append(customers[c])
         print "v " + str(v) + " tour : " + str([c.index for c in vehicle_tours[v]])
@@ -80,12 +80,16 @@ def build_tours(T, customers, vehicle_count):
 
 
 def build_variables(vehicles, customers):
+    res = []
     for v in vehicles:
-        for position in range(1, len(customers)):
-            for chosen in range(1, len(customers)):
-                return pulp.LpVariable("x_v_" + str(v) + "_pos_" + str(position) + "_c_" + str(chosen), 0, 1,
-                                           'Binary')
-
+        res.append([])
+        for position in range(0, len(customers) - 1):
+            res[v].append([])
+            for chosen in range(0, len(customers) - 1):
+                res[v][position].append(
+                    pulp.LpVariable("x_v_" + str(v) + "_pos_" + str(position) + "_c_" + str(chosen), 0, 1,
+                                    'Binary'))
+    return res
 
 def build_int_variable(vehicle, size):
     return pulp.LpVariable("tour_size_" + str(vehicle), 0, size, 'Integer')
@@ -114,29 +118,32 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
 
     # T tour starts after depot and ends before depot
     T = build_variables(vehicles, customers)
-
+    # print(T)
     for v in vehicles:
-        #tour_size customers served by each vehicle
-        model += sum([sum(T[v][pos]) for pos in range(1, len(customers))]) == tours_size[v]
-        for pos in range(1, len(customers)):
+        # tour_size customers served by each vehicle
+        # print(tours_size[v])
+        model += sum([sum(T[v][pos]) for pos in range(0, len(customers) - 1)]) == tours_size[v]
+        for pos in range(1, len(customers) - 1):
             # One customer at most per position
             model += sum(T[v][pos - 1]) <= 1
-            #Customers in first positions
+            # Customers in first positions
             model += sum(T[v][pos - 1]) >= sum(T[v][pos])
-        model += sum(customers[c].demand * is_served for c, is_served in enumerate((T[v][position])) for position in
-                     range(1, customers)) <= vehicle_capacity
-
+        # model += sum(customers[c].demand * is_served for c, is_served in enumerate((T[v][position])) for position in
+        # range(1, customers)) <= vehicle_capacity
+        model += sum([sum([customers[c].demand * served for c, served in enumerate(T[v][pos])])
+                      for pos in range(0, len(customers) - 1)])
 
     model += sum([sum([sum([dist(customers[i], customers[j])
-                            for i in T[v][pos] if T[v][pos][i] > 0
-                            for j in T[v][pos] if T[v][pos + 1][j] > 0]) for pos in T[v]]) for v in vehicles])
-    + sum([dist(customers[tours_size[v]], depot) for v in vehicles])
-    + sum([dist(customers[tours_size[0]], depot) for v in vehicles])
+                            for i, ii in enumerate(T[v][pos]) if T[v][pos][i] > 0
+                            for j, jj in enumerate(T[v][pos]) if T[v][pos + 1][j] > 0])
+                       for pos in range(0, len(customers) - 2)]) for v in vehicles])
+    # + sum([dist(customers[tours_size[v]], depot) for v in vehicles])
+    # + sum([dist(customers[0], depot) for v in vehicles])
 
 
-    #All customers are served
-    for c in range(1, len(customers)):
-        model += sum(T[v][pos][c] for pos in T[v] for v in vehicles) == 1
+    # All customers are served
+    for c in range(0, len(customers) - 1):
+        model += sum(T[v][pos][c] for pos in range(0, len(customers) - 1) for v in vehicles) == 1
 
     model.solve()
 
