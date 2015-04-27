@@ -80,10 +80,10 @@ def build_tours(T, customers, vehicle_count):
     vehicle_tours = []
     for v in range(0, vehicle_count):
         vehicle_tours.append([])
-        for from_c in range(0, len(customers) - 1):
-            for c in range(0, len(customers) - 1):
+        for from_c in range(1, len(customers)):
+            for c in range(1, len(customers)):
                 if T[v][from_c][c].value() > 0.5:
-                    vehicle_tours[v].append(customers[c + 1])
+                    vehicle_tours[v].append(customers[c])
         print "v " + str(v) + " tour : " + str([c.index for c in vehicle_tours[v]])
     return vehicle_tours
 
@@ -135,11 +135,11 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
 
     # All customers are served exactly once
     for to_c in customers_idx:
-        if to_c > -10:
+        if to_c > 0:
             model += sum(T[v][from_c][to_c] for from_c in customers_idx for v in vehicles) == 1
         # Return depot
         else:
-            model += sum(T[v][from_c][to_c] for from_c in customers_idx for v in vehicles) == 2
+            model += sum(T[v][from_c][to_c] for from_c in customers_idx for v in vehicles) == len(vehicles)
 
     for v in vehicles:
         for from_c in range(1, len(customers) - 1):
@@ -150,6 +150,7 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
         # less than capa
         model += sum([sum([customers[to_c].demand * T[v][from_c][to_c] for to_c in customers_idx])
                       for from_c in customers_idx]) <= vehicle_capacity
+        # Flux loops
         for c in customers_idx:
             model += sum(T[v][c][to_c] for to_c in customers_idx) == sum(T[v][from_c][c] for from_c in customers_idx)
 
