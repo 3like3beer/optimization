@@ -137,11 +137,19 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
     for to_c in customers_idx:
         if to_c > 0:
             model += sum(T[v][from_c][to_c] for from_c in customers_idx for v in vehicles) == 1
-        # Return depot
-        else:
-            model += sum(T[v][from_c][to_c] for from_c in customers_idx for v in vehicles) == len(vehicles)
+
+    for from_c in customers_idx:
+        if from_c > 0:
+            model += sum(T[v][from_c][to_c] for to_c in customers_idx for v in vehicles) == 1
+
+
 
     for v in vehicles:
+        # Return depot
+        model += sum(T[v][from_c][0] for from_c in customers_idx) == 1
+        # Leaves depot
+        model += sum(T[v][0][to_c] for to_c in customers_idx) == 1
+
         for from_c in range(1, len(customers) - 1):
             # One customer at most per from_c
             model += sum(T[v][from_c]) <= 1
@@ -159,7 +167,7 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
          in customers_idx]
     ) for v in vehicles])
 
-    model.solve(pulp.PULP_CBC_CMD(msg=2, maxSeconds=100))
+    model.solve(pulp.PULP_CBC_CMD(msg=0, maxSeconds=100))
     print(model)
     t = to_value(T, vehicles, customers)
 
