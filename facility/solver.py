@@ -156,7 +156,7 @@ def local_greedy2(customers, facilities):
 
 
 def local_greedy(customers, facilities):
-    nb = 5
+    nb = 50
     i = 0
     min_cost = 10000000000000000
     while i < nb:
@@ -175,7 +175,7 @@ def local_greedy(customers, facilities):
 
 
 def greedy_solution(customers, facilities):
-    rate = 100000
+    rate = 1000
     # 1. At the beginning, all customers are unconnected,
     solution = [-1] * len(customers)
     # all facilities are unopened,
@@ -209,7 +209,8 @@ def greedy_solution(customers, facilities):
                         unconnected = get_unconnected(solution)
                         if not unconnected:
                             used = create_use_list(facilities, solution)
-                            return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+                            # return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+                            return solution, used
                             #print ("unconnected 1 " + to_string(unconnected))
                     else:
                         unconnected = get_unconnected(solution)
@@ -228,13 +229,14 @@ def greedy_solution(customers, facilities):
                                         capacustomer_remaining[f.index] -= customers[uc].demand
                         if not unconnected:
                             used = create_use_list(facilities, solution)
-                            return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+                            # return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+                            return solution, used
             unconnected = get_unconnected(solution)
             # print ("unconnected " + to_string(unconnected))
             #print B
     used = create_use_list(facilities, solution)
-    return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
-
+    # return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+    return solution, used
 
 def trivial_solution(customers, facilities):
     # build a trivial solution
