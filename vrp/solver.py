@@ -95,7 +95,7 @@ def build_variables(vehicles, customers):
             res[v].append([])
             for to_c in range(0, len(customers) - 1):
                 res[v][from_c].append(
-                    pulp.LpVariable("x_v_" + str(v) + "_from_" + str(from_c) + "_to_" + str(to_c + 1), 0, 1,
+                    pulp.LpVariable("x_v_" + str(v) + "_from_" + str(from_c) + "_to_" + str(to_c), 0, 1,
                                     'Binary'))
     return res
 
@@ -130,7 +130,7 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
 
     # T tour starts after depot and ends before depot
     T = build_variables(vehicles, customers)
-    print(T)
+    # print(T)
 
     # All customers are served exactly once
     for to_c in customers_idx:
@@ -139,15 +139,18 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
     for v in vehicles:
         for from_c in range(1, len(customers) - 1):
             # One customer at most per from_c
-            model += sum(T[v][from_c - 1]) <= 1
+            model += sum(T[v][from_c]) <= 1
             # Customers in first from_cs
             model += sum(T[v][from_c - 1]) >= sum(T[v][from_c])
         # less than capa
-        model += sum([sum([customers[to_c].demand * T[v][from_c][to_c] for to_c in T[v][from_c]])
+        model += sum([sum([customers[to_c + 1].demand * T[v][from_c][to_c] for to_c in customers_idx])
                       for from_c in customers_idx]) <= vehicle_capacity
+        # for from_c in customers_idx:
+        #    model += sum(T[v][from_c][to_c] for to_c in customers_idx) + sum(T[v][to_c][from_c] for to_c in customers_idx) == 2
 
     model += sum([sum(
-        [sum([T[v][from_c][to_c] * dist(customers[from_c], customers[to_c]) for to_c in customers_idx]) for from_c in
+        [sum([T[v][from_c][to_c] * dist(customers[from_c], customers[to_c + 1]) for to_c in customers_idx]) for from_c
+         in
          customers_idx]) for v in vehicles])
 
     model.solve(pulp.GLPK(msg=2))
@@ -161,13 +164,19 @@ def pulp_solution(customers, vehicle_capacity, vehicle_count):
         #print(t[vehicle])
         print "cost of vehicle " + str(vehicle)
         cost = sum([sum(
-            [sum([t[v][from_c][to_c] * dist(customers[from_c], customers[to_c]) for to_c in customers_idx]) for from_c
+            [sum([t[v][from_c][to_c] * dist(customers[from_c], customers[to_c + 1]) for to_c in customers_idx]) for
+             from_c
              in customers_idx]) for v in vehicles])
         print cost
-    print "objective=" + str(model.objective)
+    #print "objective=" + str(model.objective)
 
     vehicle_tours = build_tours(T, customers, vehicle_count)
     print vehicle_capacity
+    print "computed capa"
+    for v in vehicles:
+        print t[v]
+        print (sum([sum([customers[to_c + 1].demand * t[v][from_c][to_c] for to_c in customers_idx])
+                    for from_c in customers_idx]) )
     print ([sum(j.demand for j in t) for t in vehicle_tours])
 
     return vehicle_tours
