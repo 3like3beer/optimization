@@ -21,7 +21,7 @@ def solve_it(input_data):
     # build a trivial solution
     # every node has its own color
     #solution = range(0, node_count)
-    solution = dsatur_solve(node_count,edges,get_opt(node_count))
+    solution = pulp_solve(node_count, edges, get_opt(node_count))
 
     # prepare the solution in the specified output format
     output_data = str(max(solution)+1) + ' ' + str(0) + '\n'
@@ -175,14 +175,19 @@ def pulp_solve(node_count,edges,opt):
     #coloring += is_color[0][0] == 1
 
     #print(coloring)
-    coloring.solve(pulp.PULP_CBC_CMD())
+    coloring.solve(pulp.PULP_CBC_CMD(msg=3, maxSeconds=100, threads=5))
 
     out = []
     for n in node_set:
+        found = False
         for c in color_set:
-            if is_color[n][c].value()>0.5:
+            if is_color[n][c].value() > 0.1:
                 #print ("col" + str(color) + "node" + str(node))
                 out.append(c)
+                found = True
+        if not (found):
+            print str(n) + " not colored"
+            print [is_color[n][c].value() for c in color_set]
         # print([is_color[c][n] for n in color_set])
         # print([is_color[c][n].value() for n in color_set])
     #print out

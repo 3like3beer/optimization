@@ -156,7 +156,7 @@ def local_greedy2(customers, facilities):
 
 
 def local_greedy(customers, facilities):
-    nb = 50
+    nb = 500
     i = 0
     min_cost = 10000000000000000
     while i < nb:
@@ -261,28 +261,46 @@ def trivial_solution(customers, facilities):
     return solution, used
 
 
-def pulp_solve(node_count, edges, opt):
-    facility = pulp.LpProblem("Facility Model", pulp.LpMinimize)
-    f_set = range(0, node_count)
+def pulp_solve(customers, facilities):
+    model = pulp.LpProblem("Facility Model", pulp.LpMinimize)
+    f_set = range(0, len(facilities))
+    c_set = range(0, len(customers))
     used = [pulp.LpVariable("f" + str(f), 0, 1, 'Binary') for f in f_set]
+    use_list = [[pulp.LpVariable("sol" + str(c) + "_fac_" + str(f), 0, len(facilities), 'Integer') for f in f_set] for c
+                in customers]
     # obj = pulp.LpVariable("objective",1,opt+1,'Integer')
-    facility += sum([f.setup_cost * used[f.index] for f in f_set])
-    obj = 1  # sum([f.setup_cost * used[f.index] for f in facilities])
-    # for customer in customers:
-    # obj += length(customer.location, facilities[solution[customer.index]].location)
+    model += sum([facilities[f].setup_cost * used[facilities[f].index] for f in f_set]) + \
+             sum([sum([length(customers[c].location, facilities[f].location) * use_list[c][f] for f in f_set]) for c in
+                  c_set])
 
-    objective = pulp.LpAffineExpression(obj)
-    facility.setObjective(objective)
+    for f in f_set:
+        model += sum([customers[c].demand * use_list[c][f] for c in c_set]) <= facilities[f].capacustomer
+    for c in c_set:
+        model += sum([use_list[c][f] for f in f_set]) == 1
 
-    facility.solve(pulp.PULP_CBC_CMD(maxSeconds=1000))
+    for f in f_set:
+        for c in c_set:
+            model += use_list[c][f] <= used[f]
 
-    out = []
+    model.solve(pulp.PULP_CBC_CMD(msg=3, maxSeconds=1000))
+
+    out = [0] * len(facilities)
+
     for f in f_set:
         if used[f].value() > 0.5:
             # print ("col" + str(color) + "node" + str(node))
-            out.append(f)
-    # print out
-    return out
+            out[f] = 1
+    print out
+    solution = []
+    # for customer in customers:
+    # facility = facilities[solution[customer.index]]
+    #     obj += cost(customer, facility)
+    for c in c_set:
+        print "c " + str(c)
+        print([f.value() for f in use_list[c]] )
+        solution.append([f for f, j in enumerate(use_list[c]) if j.value() > 0.1][0])
+    print solution
+    return solution, out
 
 
 def solve_it(input_data):
@@ -305,7 +323,7 @@ def solve_it(input_data):
         parts = lines[i].split()
         customers.append(Customer(i - 1 - facility_count, int(parts[0]), Point(float(parts[1]), float(parts[2]))))
 
-    solution, used = local_greedy2(customers, facilities)
+    solution, used = pulp_solve(customers, facilities)
 
     obj = solution_cost(customers, facilities, solution, used)
 
