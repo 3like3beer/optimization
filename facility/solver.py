@@ -1,551 +1,332 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+from collections import namedtuple
+from random import shuffle
+import math
 
-# import os
-from subprocess import Popen, PIPE
-from time import gmtime, strftime
-import random
+import pulp
 
 
-PIP_NAME = 'problem.pip'
-SOL_NAME = 'problem.sol'
-INDENT = ' ' * 9
+Point = namedtuple("Point", ['x', 'y'])
+Facility = namedtuple("Facility", ['index', 'setup_cost', 'capacustomer', 'location'])
+Customer = namedtuple("Customer", ['index', 'demand', 'location'])
 
 
-def pe(*args):
-    now = strftime("%Y-%m-%d %H:%M:%S", gmtime())
-    msg = now + ' ' + ' '.join(map(str, args)) + '\n'
-    sys.stderr.write(msg)
-    sys.stderr.flush()
+def length(point1, point2):
+    return math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2)
 
 
-class SimpleModel(object):
-    '''
-    Constants:
-        N -- # of warehouses
-        M -- # of clients / customers
-        cap_w = c_w -- warehouse capacity
-        s_w -- warehouse setup cost
-        d_c -- customer demand
-        t_c_w -- transportation cost from customer c to warehouse w
+def cost(customer, facility):
+    return length(customer.location, facility.location)
 
-    Variables:
-        a_c_w -- customer c assigned to warehouse w
 
-    Objective f:
-        // minimize 1. setup cost 2. transportation cost
-        min sum(s_w * a_c_w) + sum(t_c_w * a_c_w)
-
-    Subject to:
-        // total assigned demand <= warehouse capacity
-        sum(d_c * a_c_w)|c = 1..M <= c_w (forall w in N)
-
-        // customer assigned to only one warehouse
-        sum(a_c_w)|w = 1..N == 1 (forall c in M)
-
-    WARNING: this model is flawed and it does not guarantee optimality
-    '''
-
-    def __init__(self, warehouses, customerSizes, customerCosts):
-        self.warehouses = warehouses
-        self.customerSizes = customerSizes
-        self.customerCosts = customerCosts
-        self.N = len(warehouses)
-        self.M = len(customerSizes)
-
-    def generatePip(self):
-        def assignment(c, w):
-            return 'a_{0}_{1}'.format(c, w)
-
-        with open(PIP_NAME, 'w') as f:
-            f.write('Minimize\n\n')
-            f.write('\\ 1. Total setup cost\n')
-            f.write('    obj:\n')
-            for w in range(self.N):
-                for c in range(self.M):
-                    f.write('{0}{1} {2} +\n'.format(INDENT, self.warehouses[w][1], assignment(c, w)))
-            f.write('\n')
-            f.write('\\ 2. Total travel cost from client to assigned warehouse\n')
-            for w in range(self.N):
-                for c in range(self.M):
-                    plus = '' if (w == self.N - 1) and (c == self.M - 1) else ' +'
-                    f.write('{0}{1} {2}{3}\n'.format(INDENT, self.customerCosts[c][w], assignment(c, w), plus))
-            f.write('\n')
-
-            f.write('Subject to\n')
-            f.write('\\ Total clients\' demand for warehouse <= warehouse capacity\n')
-            for w in range(self.N):
-                for c in range(self.M):
-                    less = ' <= {0}\n'.format(self.warehouses[w][0]) if c == self.M - 1 else ' +'
-                    f.write('{0}{1} {2}{3}\n'.format(INDENT, self.customerSizes[c], assignment(c, w), less))
-            #f.write('\n')
-
-            f.write('\\ Each client is assigned to only one warehouse\n')
-            f.write('\\ i.e. sum(Ac)|w=1..N == 1\n')
-            for c in range(self.M):
-                for w in range(self.N):
-                    plus = ' == 1\n' if w == self.N - 1 else ' +'
-                    f.write('{0}{1}{2}\n'.format(INDENT, assignment(c, w), plus))
-            #f.write('\n')
-
-            f.write('Bounds\n')
-            f.write('\n')
-
-            f.write('Binary\n')
-            for w in range(self.N):
-                for c in range(self.M):
-                    f.write('{0}{1}\n'.format(INDENT, assignment(c, w)))
-                f.write('\n')
-            #f.write('\n')
-
-            f.write('End\n')
-
-    def parseSolution(self):
-        value = 0
-        clientWarehouse = initAssignments(self.N, self.M)
-
-        with open(SOL_NAME) as f:
-            f.readline()  # skip 'solution found' message
-            value = f.readline()[len('objective value:'):].strip()
-            while True:
-                line = f.readline()
-                if len(line) == 0:
-                    break
-                if not line.startswith('a_'):  # assignment variable prefix
-                    continue
-                name, val, _ = line.strip().split()
-                _, c, w = name.split('_')
-                clientWarehouse[int(c)] = int(w)
-
-        self.objectiveValue = value
-        self.clientAssignments = clientWarehouse
-
-    def formatSolution(self):
-        first = '{0} {1}'.format(self.objectiveValue, 0)
-        second = ' '.join(map(str, self.clientAssignments))
-        print(first)
-        print(second)
-        return '{0}\n{1}'.format(first, second)
-
-
-class LectureModel(object):
-    '''
-    Constants:
-        N -- # of warehouses
-        M -- # of clients / customers
-        cap_w = c_w -- warehouse capacity
-        s_w -- warehouse setup cost
-        d_c -- customer demand
-        t_c_w -- transportation cost from customer c to warehouse w
-
-    Variables:
-        a_c_w -- customer c assigned to warehouse w
-        o_w -- warehouse w is open
-
-    Objective f:
-        // minimize 1. setup cost 2. transportation cost
-        min sum(s_w * o_w) + sum(t_c_w * a_c_w)
-
-    Subject to:
-        // we can assign customer c to warehouse w only if it is open
-        a_c_w <= o_w (forall w in W, c in C)
-        actually: a_c_w - o_w <= 0
-
-        // customer assigned to only one warehouse
-        sum(a_c_w)|w in W == 1 (forall c in M)
-
-        // total assigned demand <= warehouse capacity
-        sum(d_c * a_c_w)|c = 1..M <= c_w (forall w in N)
-    '''
-
-    def __init__(self, warehouses, customerSizes, customerCosts):
-        self.warehouses = warehouses
-        self.customerSizes = customerSizes
-        self.customerCosts = customerCosts
-        self.N = len(warehouses)
-        self.M = len(customerSizes)
-
-    def generatePip(self):
-        # 10 cheapest warehouses for problem #6
-        fixed = set([264, 109, 484, 462, 145, 482, 414, 401, 115, 95])
-        # fixed = set([95])
-        lastFixed = sorted(list(fixed))[-1]
-
-        def assignment(c, w):
-            return 'a_{0}_{1}'.format(c, w)
-
-        def wopen(w):
-            if w in fixed:
-                return 'o_{0}'.format(w)
-            else:
-                return ''
-
-        with open(PIP_NAME, 'w') as f:
-
-            f.write('Minimize\n\n')
-            f.write('    obj:\n')
-            f.write('\\ 1. Total setup cost\n')
-            for w in range(self.N):
-                # for c in range(self.M):
-                #f.write('{0}{1} {2} +\n'.format(INDENT, self.warehouses[w][1], assignment(c, w)))
-                if w in fixed:
-                    f.write('{0}{1} {2} +\n'.format(INDENT, self.warehouses[w][1], wopen(w)))
-            f.write('\n')
-
-            f.write('\\ 2. Total travel cost from client to assigned warehouse\n')
-            for w in range(self.N):
-                for c in range(self.M):
-                    # plus = '' if (w == self.N-1) and (c == self.M-1) else ' +'
-                    plus = '' if (w == lastFixed) and (c == self.M - 1) else ' +'
-                    if w in fixed:
-                        f.write('{0}{1} {2}{3}\n'.format(INDENT, self.customerCosts[c][w], assignment(c, w), plus))
-                if w in fixed:
-                    f.write('\n')
-
-            f.write('Subject to\n')
-            f.write('\\ 1. Assign customer to open warehouse only\n')
-            f.write('\\ i.e. sum(Ac)|w=1..N == 1\n')
-            for c in range(self.M):
-                for w in range(self.N):
-                    plus = ' <= 0'
-                    if w in fixed:
-                        f.write('{0}{1} - {2}{3}\n'.format(INDENT, assignment(c, w), wopen(w), plus))
-                if w in fixed:
-                    f.write('\n')
-
-            f.write('\\ 2. Each client is assigned to only one warehouse\n')
-            f.write('\\ i.e. sum(Ac)|w=1..N == 1\n')
-            for c in range(self.M):
-                for w in range(self.N):
-                    plus = ' +'  # ' == 1\n' if w == self.N-1 else ' +'
-                    if w in fixed:
-                        f.write('{0}{1}{2}\n'.format(INDENT, assignment(c, w), plus))
-                f.write('{0}0 == 1\n'.format(INDENT))
-            # f.write('\n')
-
-            f.write('\\ 3. Total clients\' demand for warehouse <= warehouse capacity\n')
-            for w in range(self.N):
-                for c in range(self.M):
-                    less = ' <= {0}\n'.format(self.warehouses[w][0]) if c == self.M - 1 else ' +'
-                    if w in fixed:
-                        f.write('{0}{1} {2}{3}\n'.format(INDENT, self.customerSizes[c], assignment(c, w), less))
-            #f.write('\n')
-
-            f.write('Bounds\n')
-            #f.write('Binary\n')
-            f.write('\n')
-
-            f.write('Binary\n')
-            #f.write('Bounds\n')
-            for w in range(self.N):
-                for c in range(self.M):
-                    if w in fixed:
-                        f.write('{0}{1}\n'.format(INDENT, assignment(c, w)))
-                        #f.write('{0}0 <= {1} <= 1\n'.format(INDENT, assignment(c, w)))
-                if w in fixed:
-                    f.write('\n')
-
-            for w in range(self.N):
-                if w in fixed:
-                    f.write('{0}{1}\n'.format(INDENT, wopen(w)))
-                    #f.write('{0}0 <= {1} <= 1\n'.format(INDENT, wopen(w)))
-            #f.write('\n')
-
-            f.write('End\n')
-
-    def parseSolution(self):
-        value = 0.0
-        clientWarehouse = initAssignments(self.N, self.M)
-        self.probabilities = []
-        for _ in range(self.M):
-            self.probabilities.append([0.0] * self.N)
-
-        with open(SOL_NAME) as f:
-            f.readline()  # skip 'solution found' message
-            value = float(f.readline()[len('objective value:'):].strip())
-            while True:
-                line = f.readline()
-                if len(line) == 0:
-                    break
-                if not line.startswith('a_'):  # assignment variable prefix
-                    continue
-                name, val, _ = line.strip().split()
-                _, c, w = name.split('_')
-                c, w = int(c), int(w)
-                clientWarehouse[c] = w
-                self.probabilities[c][w] = float(val)
-
-        self.objectiveValue = value
-        self.clientAssignments = clientWarehouse
-
-        # pe('hello', clientWarehouse)
-        #pe('hello', pprint.pformat(probabilities))
-        #pe('hello', probabilities)
-
-    def cost(self, c, w):
-        # setup cost + transportation cost
-        return self.warehouses[w][1] + self.customerCosts[c][w]
-
-    def cheapestWarehouseForClient(self, c, capacity):
-        lowestIndex = 0
-        lowestCost = self.cost(c, lowestIndex)
-        for w in range(1, self.N):
-            currentCost = self.cost(c, w)
-            if (currentCost < lowestCost) and (capacity[w] >= self.customerSizes[c]):
-                lowestCost, lowestIndex = currentCost, w
-        return lowestIndex
-
-    def roundSolutionRandomly(self):
-        capacityRemaining = [w[0] for w in self.warehouses]
-        for ci, c in enumerate(self.probabilities):
-            assigned = False
-            for wi, w in enumerate(c):
-                p = self.probabilities[ci][wi]
-                if random.random() < p:
-                    self.clientAssignments[ci] = wi
-                    pe('Assigned client {0} to warehouse {1} (p={2})'
-                       ''.format(ci, wi, p))
-                    assigned = True
-                    break
-            if not assigned:
-                # wi = random.randint(0, self.N - 1)
-                wi = self.cheapestWarehouseForClient(ci, capacityRemaining)
-                self.clientAssignments[ci] = wi
-                capacityRemaining[wi] -= self.customerSizes[ci]
-                pe('No probability worked, assigned client {0} to cheapest warehouse {1}'
-                   ''.format(ci, wi))
-                #pe('No probability worked, randomly assigned client {0} to warehouse {1}'
-                #   ''.format(ci, wi))
-
-        self.fractionalObjectiveValue = self.objectiveValue
-        self.roundedObjectiveValue = self.calcObjectiveValue()
-        self.objectiveValue = self.roundedObjectiveValue
-
-        diff = self.roundedObjectiveValue - self.fractionalObjectiveValue
-        pe('Rounded {0} - Fractional {1} = {2}'
-           ''.format(self.roundedObjectiveValue, self.fractionalObjectiveValue,
-                     diff))
-
-    def calcObjectiveValue(self):
-        objValue = 0.0
-        warehouseUsed = [False] * self.N
-        for ci in range(self.M):
-            wi = self.clientAssignments[ci]
-            # client transportation cost
-            objValue += self.customerCosts[ci][wi]
-            if not warehouseUsed[wi]:
-                warehouseUsed[wi] = True
-                # warehouse setup cost
-                objValue += self.warehouses[wi][1]
-        return objValue
-
-    def formatSolution(self):
-        first = '{0} {1}'.format(self.objectiveValue, 0)
-        second = ' '.join(map(str, self.clientAssignments))
-        print(first)
-        print(second)
-        return '{0}\n{1}'.format(first, second)
-
-
-def runSolver():
-    process = Popen(['./runSolver.sh', PIP_NAME, SOL_NAME], stdout=PIPE)
-    (stdout, stderr) = process.communicate()
-
-
-def initAssignments(N, M):
-    return [0] * M
-
-
-def solveWLP(model):
-    # pe('Generating problem description')
-    #model.generatePip()
-    #pe('Running solver')
-    #runSolver()
-    model.parseSolution()
-    #model.objectiveValue = model.calcObjectiveValue()
-    #model.roundSolutionRandomly()
-    pe('Solution is ready')
-    return model.formatSolution()
-
-
-def solveGreedyBest(warehouses, customerSizes, customerCosts):
-    bestStart = -1
-    bestCost = -1
-    bestSolution = None
-
-    for i in range(len(customerSizes)):
-        pe('Trying {0} / {1}'.format(i, len(customerSizes)))
-        cost, solution = solveGreedy(warehouses, customerSizes, customerCosts, i)
-        if (cost < bestCost) or (bestStart == -1):
-            pe('Better solution at {0}: {1} < {2}'.format(i, cost, bestCost))
-            bestCost = cost
-            bestStart = i
-            bestSolution = solution
-
-    pe('Best solution starts at client {0}: {1}'.format(bestStart, bestCost))
-    print(bestSolution)
-    return bestSolution
-
-
-def solveGreedy(warehouses, customerSizes, customerCosts, startClient=0):
-    N = len(warehouses)
-    M = len(customerSizes)
-
-    # build a trivial solution
-    # pack the warehouses one by one until all the customers are served
-
-    def openCost(c, w, capacity):
-        value = 0.0
-        # value = customerCosts[c][w]
-        #if capacity[w] == warehouses[w][0]:
-        value += warehouses[w][1]
-        return value
-
-    def cost(c, w, capacity):
-        value = 0.0
-        value = customerCosts[c][w]
-        # if capacity[w] == warehouses[w][0]:
-        #value += warehouses[w][1]
-        return value
-
-    cheapestWarehouses = sorted(range(M), key=lambda x: openCost(-1, x, None))
-    cheapestWarehouses = cheapestWarehouses[:10]
-    pe(cheapestWarehouses)
-
-    def cheapestWarehouseForClient(c, capacity):
-        # return random.choice(cheapestWarehouses)
-
-        lowestIndex = cheapestWarehouses[0]
-        lowestCost = cost(c, lowestIndex, capacity)
-        for i in range(1, len(cheapestWarehouses)):
-            w = cheapestWarehouses[i]
-            currentCost = cost(c, w, capacity)
-            if (currentCost < lowestCost) and (capacity[w] >= customerSizes[c]):
-                lowestCost, lowestIndex = currentCost, w
-        return lowestIndex
-
-        # lowestIndex = 0
-        # lowestCost = cost(c, lowestIndex, capacity)
-        # for w in range(1, N):
-        # currentCost = cost(c, w, capacity)
-        #     if (currentCost < lowestCost) and (capacity[w] >= customerSizes[c]):
-        #         lowestCost, lowestIndex = currentCost, w
-        # return lowestIndex
-
-    solution = [-1] * M
-    capacityRemaining = [w[0] for w in warehouses]
-
-    warehouseIndex = 0
-    for i in range(0, M):
-        c = (startClient + i) % M
-        warehouseIndex = cheapestWarehouseForClient(c, capacityRemaining)
-
-        if capacityRemaining[warehouseIndex] >= customerSizes[c]:
-            solution[c] = warehouseIndex
-            capacityRemaining[warehouseIndex] -= customerSizes[c]
-        else:
-            warehouseIndex += 1
-            assert capacityRemaining[warehouseIndex] >= customerSizes[c]
-            solution[c] = warehouseIndex
-            capacityRemaining[warehouseIndex] -= customerSizes[c]
-
-    used = [0] * N
-    for wa in solution:
-        used[wa] = 1
-
+def solution_cost(customers, facilities, solution, used):
     # calculate the cost of the solution
-    obj = sum([warehouses[x][1] * used[x] for x in range(0, N)])
-    for c in range(0, M):
-        obj += customerCosts[c][solution[c]]
-
-    # prepare the solution in the specified output format
-    outputData = str(obj) + ' ' + str(0) + '\n'
-    outputData += ' '.join(map(str, solution))
-
-    print(outputData)
-    # return obj, outputData
-    return outputData
+    obj = sum([f.setup_cost * used[f.index] for f in facilities])
+    for customer in customers:
+        facility = facilities[solution[customer.index]]
+        obj += cost(customer, facility)
+    return obj
 
 
-def solveIt(inputData):
+def create_use_list(facilities, solution):
+    used = [0] * len(facilities)
+    for facility_index in solution:
+        used[facility_index] = 1
+    return used
+
+
+def get_unconnected(solution):
+    return [i for i, c in enumerate(solution) if c <= -0.5]
+
+
+# At every moment, each customer j offers some money from its budget to each unopened facility i.
+def get_offer(customer, facilities, facility, B, solution):
+    offer2 = cost(customer, facility)
+    if (solution[customer.index] == -1):
+        # The amount of this offer is equal to max(Bj −cij,0) if j is unconnected,
+        offer1 = B[customer.index]
+    else:
+        # and max(ci′j − cij,0) if it is connected to some other facility i′.
+        offer1 = cost(customer, facilities[solution[customer.index]])
+    return max(offer1 - offer2, 0)
+
+
+def open_facility(f, assigned, solution, capacustomer_remaining):
+    if assigned:
+        for c in assigned:
+            if solution[c.index] > -1:
+                capacustomer_remaining[solution[c.index]] += c.demand
+            solution[c.index] = f.index
+            capacustomer_remaining[f.index] -= c.demand
+            # print "Opening Facility " + str(f.index) + " assigning " + to_string(
+            #   [c.index for c in assigned]) + " To assign " + to_string(get_unconnected(solution))
+
+
+def to_string(list):
+    if len(list) > 10:
+        return "list of size: " + str(len(list))
+    else:
+        return str(list)
+
+
+def open_if_possible(customers, facilities, f, B, solution, capacustomer_remaining):
+    total_offer = 0
+    offers = []
+    for c in customers:
+        offer = get_offer(c, facilities, f, B, solution)
+        offers.append(offer)
+        total_offer += offer
+    if total_offer < f.setup_cost:
+        return
+    else:
+        total_offer = 0
+        a = zip(offers, customers)
+        a.sort(key=lambda x: x[0], reverse=True)
+        capacity = f.capacustomer
+        assigned = []
+        while total_offer < f.setup_cost and capacity >= c.demand:
+            for offer, c in a:
+                if capacity >= c.demand:
+                    assigned.append(c)
+                    capacity -= c.demand
+                    total_offer += offer
+        open_facility(f, assigned, solution, capacustomer_remaining)
+
+
+def get_demand(customers, f, solution):
+    demand = 0
+    for c in customers:
+        if solution[c.index] == f.index:
+            demand += c.demand
+    return demand
+
+
+def test_swap(open_f, closed_f, customers, facilities, solution):
+    new_solution = [s for s in solution]
+    cur_cost = solution_cost(customers, facilities, solution, create_use_list(facilities, solution))
+    demand = get_demand(customers, open_f, solution)
+    if demand < closed_f.capacustomer:
+        # print "test swaping " + str(open_f.index) + " and " + str(closed_f.index)
+        for c in customers:
+            if new_solution[c.index] == open_f.index:
+                new_solution[c.index] = closed_f.index
+        assert create_use_list(facilities, new_solution)[open_f.index] == 0
+        # assert create_use_list(facilities, new_solution)[closed_f.index] == 1
+    if solution_cost(customers, facilities, new_solution, create_use_list(facilities, new_solution)) < cur_cost:
+        # print "new cost " + str(solution_cost(customers, facilities, new_solution, create_use_list(facilities, new_solution)))
+        return new_solution, create_use_list(facilities, new_solution)
+    else:
+        return solution, create_use_list(facilities, solution)
+
+
+def opt_local(customers, facilities, min_cost, min_solution, min_used):
+    old_cost = 10000000000000000
+    while min_cost < old_cost:
+        old_cost = min_cost
+        for open_f in [f for f in facilities if min_used[f.index] > 0.5]:
+            for closed_f in [f for f in facilities if min_used[f.index] < 0.5]:
+                solution, used = test_swap(open_f, closed_f, customers, facilities, min_solution)
+                for c in customers:
+                    for old_f in [f for f in facilities if min_used[f.index] > 0.5]:
+                        for new_f in [f for f in facilities if min_used[f.index] > 0.5]:
+                            if solution[c.index] == old_f and new_f.capacustomer > c.demand + get_demand(customers, f,
+                                                                                                         solution):
+                                new_sol = [s for s in solution]
+                                new_sol[c.index] = new_f
+                                if solution_cost(customers, facilities, new_sol,
+                                                 create_use_list(facilities, new_sol)) < cur_cost:
+                                    solution = new_sol
+                                    used = create_use_list(facilities, new_sol)
+                cur_cost = solution_cost(customers, facilities, solution, used)
+                if cur_cost < min_cost:
+                    min_cost = cur_cost
+                    min_solution = solution
+                    min_used = used
+    return min_solution, min_used
+
+
+def local_greedy2(customers, facilities):
+    min_solution, min_used = local_greedy(customers, facilities)
+    min_cost = solution_cost(customers, facilities, min_solution, min_used)
+    print "shuffle_greedy cost " + str(min_cost)
+    min_solution, min_used = opt_local(customers, facilities, min_cost, min_solution, min_used)
+    return min_solution, min_used
+
+
+def local_greedy(customers, facilities):
+    nb = 50
+    i = 0
+    min_cost = 10000000000000000
+    while i < nb:
+
+        if nb > 10 and i % (nb / 10) == 0:
+            print "nb " + str(i) + "/ " + str(nb)
+        solution, used = greedy_solution(customers, facilities)
+        cur_cost = solution_cost(customers, facilities, solution, used)
+        if cur_cost < min_cost:
+            min_cost = cur_cost
+            min_solution = solution
+            min_used = used
+            print str(min_cost)
+        i += 1
+    return min_solution, min_used
+
+
+def greedy_solution(customers, facilities):
+    rate = 1000
+    # 1. At the beginning, all customers are unconnected,
+    solution = [-1] * len(customers)
+    # all facilities are unopened,
+    # and the budget of every customer j, denoted by Bj, is initialized to 0.
+    B = [0 for c in customers]
+
+    capacustomer_remaining = [f.capacustomer for f in facilities]
+    shuffle_facilities = [f for f in facilities]
+    shuffle(shuffle_facilities)
+
+    unconnected = get_unconnected(solution)
+    shuffle_unconnected = [c for c in unconnected]
+    shuffle(shuffle_unconnected)
+
+    # 2. While there is an unconnected customer,
+    unconnected = get_unconnected(solution)
+    while unconnected:
+        used = create_use_list(facilities, solution)
+        # increase the budget of each unconnected customer at the same rate,
+        while unconnected:
+            for uc in unconnected:
+                B[uc] += rate
+                # until one of the following events occurs:
+                for f in shuffle_facilities:
+                    used = create_use_list(facilities, solution)
+                    if used[f.index] < 1:
+                        # (a) For some unopened facility i, the total offer that it receives from customers is equal to the cost of opening i.
+                        # In this case, we open facility i,
+                        # and for every customer j (connected or unconnected) which has a non-zero offer to i, we connect j to i.
+                        open_if_possible(customers, facilities, f, B, solution, capacustomer_remaining)
+                        unconnected = get_unconnected(solution)
+                        if not unconnected:
+                            used = create_use_list(facilities, solution)
+                            # return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+                            return solution, used
+                            # print ("unconnected 1 " + to_string(unconnected))
+                    else:
+                        unconnected = get_unconnected(solution)
+                        # print ("unconnected 2 " + to_string(unconnected))
+                        for uc in unconnected:
+                            # (b) For some unconnected customer j,
+                            # and some facility i that is already open,
+                            # the budget of j is equal to the connection cost cij.
+                            # In this case, we connect j to i.
+                            if solution[uc] < -0.5:
+                                if B[uc] >= cost(customers[uc], f):  #and used[f.index] > 0.5:
+                                    if capacustomer_remaining[f.index] > customers[uc].demand:
+                                        #print "connect customer " + str(uc) + " to facility " + str(f.index)
+                                        #print "Current solution " + str(solution)
+                                        solution[uc] = f.index
+                                        capacustomer_remaining[f.index] -= customers[uc].demand
+                        if not unconnected:
+                            used = create_use_list(facilities, solution)
+                            # return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+                            return solution, used
+            unconnected = get_unconnected(solution)
+            # print ("unconnected " + to_string(unconnected))
+            # print B
+    used = create_use_list(facilities, solution)
+    # return opt_local(customers, facilities, solution_cost(customers, facilities, solution, used) , solution, used)
+    return solution, used
+
+
+def trivial_solution(customers, facilities):
+    # build a trivial solution
+    # pack the facilities one by one until all the customers are served
+    solution = [-1] * len(customers)
+    capacustomer_remaining = [f.capacustomer for f in facilities]
+    facilities_index = [f.index for f in facilities]
+    shuffle(facilities_index)
+    i = 0
+    facility_index = facilities_index[i]
+    for customer in customers:
+        if capacustomer_remaining[facility_index] >= customer.demand:
+            solution[customer.index] = facility_index
+            capacustomer_remaining[facility_index] -= customer.demand
+        else:
+            i += 1
+            facility_index = facilities_index[i]
+            assert capacustomer_remaining[facility_index] >= customer.demand
+            solution[customer.index] = facility_index
+            capacustomer_remaining[facility_index] -= customer.demand
+    used = create_use_list(facilities, solution)
+    return solution, used
+
+
+def pulp_solve(node_count, edges, opt):
+    facility = pulp.LpProblem("Facility Model", pulp.LpMinimize)
+    f_set = range(0, node_count)
+    used = [pulp.LpVariable("f" + str(f), 0, 1, 'Binary') for f in f_set]
+    # obj = pulp.LpVariable("objective",1,opt+1,'Integer')
+    facility += sum([f.setup_cost * used[f.index] for f in f_set])
+    obj = 1  # sum([f.setup_cost * used[f.index] for f in facilities])
+    # for customer in customers:
+    # obj += length(customer.location, facilities[solution[customer.index]].location)
+
+    objective = pulp.LpAffineExpression(obj)
+    facility.setObjective(objective)
+
+    facility.solve(pulp.PULP_CBC_CMD(maxSeconds=1000))
+
+    out = []
+    for f in f_set:
+        if used[f].value() > 0.5:
+            # print ("col" + str(color) + "node" + str(node))
+            out.append(f)
+    # print out
+    return out
+
+
+def solve_it(input_data):
     # Modify this code to run your optimization algorithm
 
     # parse the input
-    lines = inputData.split('\n')
+    lines = input_data.split('\n')
 
     parts = lines[0].split()
-    warehouseCount = int(parts[0])
-    customerCount = int(parts[1])
+    facility_count = int(parts[0])
+    customer_count = int(parts[1])
 
-    warehouses = []
-    for i in range(1, warehouseCount + 1):
-        line = lines[i]
-        parts = line.split()
-        warehouses.append((int(parts[0]), float(parts[1])))
+    facilities = []
+    for i in range(1, facility_count + 1):
+        parts = lines[i].split()
+        facilities.append(Facility(i - 1, float(parts[0]), int(parts[1]), Point(float(parts[2]), float(parts[3]))))
 
-    customerSizes = []
-    customerCosts = []
+    customers = []
+    for i in range(facility_count + 1, facility_count + 1 + customer_count):
+        parts = lines[i].split()
+        customers.append(Customer(i - 1 - facility_count, int(parts[0]), Point(float(parts[1]), float(parts[2]))))
 
-    lineIndex = warehouseCount + 1
-    for i in range(0, customerCount):
-        customerSize = int(lines[lineIndex + 2 * i])
-        customerCost = map(float, lines[lineIndex + 2 * i + 1].split())
-        customerSizes.append(customerSize)
-        customerCosts.append(customerCost)
+    solution, used = local_greedy2(customers, facilities)
 
-    # model = SimpleModel(warehouses, customerSizes, customerCosts)
-    model = LectureModel(warehouses, customerSizes, customerCosts)
-    return solveWLP(model)
-
-    # return solveGreedy(warehouses, customerSizes, customerCosts)
-    #return solveGreedyBest(warehouses, customerSizes, customerCosts)
-
-    # build a trivial solution
-    # pack the warehouses one by one until all the customers are served
-
-    solution = [-1] * customerCount
-    capacityRemaining = [w[0] for w in warehouses]
-
-    warehouseIndex = 0
-    for c in range(0, customerCount):
-        if capacityRemaining[warehouseIndex] >= customerSizes[c]:
-            solution[c] = warehouseIndex
-            capacityRemaining[warehouseIndex] -= customerSizes[c]
-        else:
-            warehouseIndex += 1
-            assert capacityRemaining[warehouseIndex] >= customerSizes[c]
-            solution[c] = warehouseIndex
-            capacityRemaining[warehouseIndex] -= customerSizes[c]
-
-    used = [0] * warehouseCount
-    for wa in solution:
-        used[wa] = 1
-
-    # calculate the cost of the solution
-    obj = sum([warehouses[x][1] * used[x] for x in range(0, warehouseCount)])
-    for c in range(0, customerCount):
-        obj += customerCosts[c][solution[c]]
+    obj = solution_cost(customers, facilities, solution, used)
 
     # prepare the solution in the specified output format
-    outputData = str(obj) + ' ' + str(0) + '\n'
-    outputData += ' '.join(map(str, solution))
+    output_data = str(obj) + ' ' + str(0) + '\n'
+    output_data += ' '.join(map(str, solution))
 
-    print(outputData)
-    #return outputData
+    return output_data
 
 
 import sys
 
 if __name__ == '__main__':
-    random.seed()
     if len(sys.argv) > 1:
-        fileLocation = sys.argv[1].strip()
-        inputDataFile = open(fileLocation, 'r')
-        inputData = ''.join(inputDataFile.readlines())
-        inputDataFile.close()
-        solveIt(inputData)
-        # print 'Solving:', fileLocation
-        #print solveIt(inputData)
+        file_location = sys.argv[1].strip()
+        input_data_file = open(file_location, 'r')
+        input_data = ''.join(input_data_file.readlines())
+        input_data_file.close()
+        print 'Solving:', file_location
+        print solve_it(input_data)
     else:
-        print 'This test requires an input file.  Please select one from the data directory. (i.e. python solver.py ./data/wl_16_1)'
+        print 'This test requires an input file.  Please select one from the data directory. (i.e. python solver.py ./data/fl_16_2)'
+
