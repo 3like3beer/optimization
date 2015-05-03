@@ -4,8 +4,10 @@
 import random
 import math
 from __builtin__ import enumerate
-import pulp
 from collections import namedtuple
+
+import pulp
+
 # from openopt import *
 #import networkx as nx
 ITER_MAX = 2000
@@ -14,6 +16,45 @@ Point = namedtuple("Point", ['x', 'y'])
 
 def length(point1, point2):
     return math.sqrt((point1.x - point2.x)**2 + (point1.y - point2.y)**2)
+
+
+def write_scip(node_count, points):
+    tsp = "/home/julien/scipoptsuite-3.0.1/scip-3.0.1/examples/TSP/tspdata/pr76.tsp"
+    data = open(tsp, "w")
+    data.write("NAME : " + str(node_count) + "\n")
+    data.write("COMMENT : RAS" + "\n")
+    data.write("TYPE : TSP" + "\n")
+    data.write("DIMENSION : " + str(node_count) + "\n")
+    data.write("EDGE_WEIGHT_TYPE : EUC_2D" + "\n")
+    data.write("NODE_COORD_SECTION" + "\n")
+    for i, p in enumerate(points, start=0):
+        data.write(str(i) + " " + str(p.x) + " " + str(p.y) + "\n")
+    data.write("\n")
+    data.close()
+    return
+
+
+def scip(points, node_count):
+    # write_scip(node_count, points)
+
+    # process = Popen(['/opt/scipoptsuite/scip-3.0.1/examples/Coloring/bin/coloring', '-f', 'coloring.col'])
+    # process = Popen(['/home/julien/scipoptsuite-3.0.1/scip-3.0.1/examples/TSP/runme.sh'])
+    #process = Popen(['/home/julien/scipoptsuite-3.0.1/scip-3.0.1/examples/TSP/bin/sciptsp', '-c', 'read ' + tsp, '-c', 'set limits time 120','-c', 'optimize', '-c','write problem coloring.tsp','-c','quit'])
+    # (stdout, stderr) = process.communicate()
+    # process.wait()
+
+    csol_solution = open("/home/julien/scipoptsuite-3.0.1/scip-3.0.1/examples/TSP/temp.tour", "r")
+    #csol_solution.readline()
+    #csol_solution.readline()
+    sol = []
+    for i, line in enumerate(csol_solution):
+        if i > 2:
+            print(line)
+            if len(line) > 0:
+                sol.append(int(line.split()[0]))
+    csol_solution.close()
+
+    return sol
 
 
 def tour_length(node_count, points, sol):
@@ -50,7 +91,7 @@ def solve_it(input_data):
         parts = line.split()
         points.append(Point(float(parts[0]), float(parts[1])))
 
-    solution = sa_solution(points,node_count)
+    solution = scip(points, node_count)
     print(solution)
 
     obj = tour_length(node_count, points, solution)
