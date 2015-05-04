@@ -8,6 +8,7 @@ from collections import namedtuple
 
 import pulp
 
+
 # from openopt import *
 #import networkx as nx
 ITER_MAX = 2000
@@ -35,7 +36,7 @@ def write_scip(node_count, points):
 
 
 def scip(points, node_count):
-    # write_scip(node_count, points)
+    write_scip(node_count, points)
 
     # process = Popen(['/opt/scipoptsuite/scip-3.0.1/examples/Coloring/bin/coloring', '-f', 'coloring.col'])
     # process = Popen(['/home/julien/scipoptsuite-3.0.1/scip-3.0.1/examples/TSP/runme.sh'])
