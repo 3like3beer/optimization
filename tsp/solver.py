@@ -7,6 +7,7 @@ from __builtin__ import enumerate
 import pulp
 
 
+
 # !/usr/bin/python
 # -*- coding: utf-8 -*-
 
@@ -260,7 +261,7 @@ def my_solver(points, nodeCount):
     # Setting first solution heuristic (cheapest addition).
     parameters.first_solution = 'PathCheapestArc'
     # Disabling Large Neighborhood Search, comment out to activate it.
-    parameters.no_lns = True
+    # parameters.no_lns = True
     parameters.no_tsp = False
 
     # Setting the cost function.
@@ -293,10 +294,11 @@ def my_solver(points, nodeCount):
         solution = []
         while not routing.IsEnd(node):
             route += str(node) + ' -> '
-            solution.append(node)
+            solution.append(int(node))
             node = assignment.Value(routing.NextVar(node))
         route += '0'
         print route
+        print solution
     else:
         print 'No solution found.'
     return solution
@@ -428,34 +430,18 @@ def solve_it(input_data):
     print obj
 
     # prepare the solution in the specified output format
-    output_data = str(obj / 100) + ' ' + str(1) + '\n'
+    output_data = str(obj) + ' ' + str(0) + '\n'
     output_data += ' '.join(map(str, solution))
 
     return output_data
 
-
-import sys
-
-if __name__ == '__main__':
-
-    if len(sys.argv) > 1:
-        file_location = sys.argv[1].strip()
-        input_data_file = open(file_location, 'r')
-        input_data = ''.join(input_data_file.readlines())
-        input_data_file.close()
-        solution = solve_it(input_data)
-        f = open("solution", 'w')
-        f.write(solution)
-        f.close()
-    else:
-        print 'This test requires an input file.  Please select one from the data directory. (i.e. python solver.py ./data/tsp_51_1)'
 
 
 # from openopt import *
 #import networkx as nx
 ITER_MAX = 2000
 
-Point = namedtuple("Point", ['x', 'y'])
+#
 
 def write_scip(node_count, points):
     tsp = "/home/julien/scipoptsuite-3.0.1/scip-3.0.1/examples/TSP/tspdata/pr76.tsp"
@@ -953,4 +939,21 @@ def pulp_solution(points,node_count):
     print(out)
     print(sorted(out))
     return out
+
+
+import sys
+
+if __name__ == '__main__':
+
+    if len(sys.argv) > 1:
+        file_location = sys.argv[1].strip()
+        input_data_file = open(file_location, 'r')
+        input_data = ''.join(input_data_file.readlines())
+        input_data_file.close()
+        solution = solve_it(input_data)
+        f = open("solution", 'w')
+        f.write(solution)
+        f.close()
+    else:
+        print 'This test requires an input file.  Please select one from the data directory. (i.e. python solver.py ./data/tsp_51_1)'
 
