@@ -1,10 +1,24 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import collections
+import copy
+import time
+import sys
 
-import pulp
+sys.setrecursionlimit(100000000)
+
+colors = []
+best_colors = []
+baseline = 0
 
 def solve_it(input_data):
-    # Modify this code to run your optimization algorithm
+    # tmpFile = open('2.txt', 'r')
+    # out = tmpFile.read()
+    # tmpFile.close()
+    # return out
+    global best_colors
+    global baseline
+    global colors
 
     # parse the input
     lines = input_data.split('\n')
@@ -14,186 +28,94 @@ def solve_it(input_data):
     edge_count = int(first_line[1])
 
     edges = []
+    neighbors = [set() for i in range(node_count)]
+    neighbor_colors = [collections.defaultdict(int) for i in range(node_count)]
+    candidate_colors = set()
+    colors = [0] * node_count
+    best_colors = []
+    baseline = node_count
+
     for i in range(1, edge_count + 1):
         line = lines[i]
         parts = line.split()
         edges.append((int(parts[0]), int(parts[1])))
-    # build a trivial solution
-    # every node has its own color
-    #solution = range(0, node_count)
-    solution = pulp_solve(node_count, edges, get_opt(node_count))
+        neighbors[int(parts[0])].add(int(parts[1]))
+        neighbors[int(parts[1])].add(int(parts[0]))
+
+    def get_neighbor_colors(vertex, ordered=True):
+        neighbor_colors_v = set()
+        for neighbor in neighbors[vertex]:
+            if not ordered or neighbor < vertex:
+                neighbor_colors_v.add(colors[neighbor])
+        return neighbor_colors_v
+
+    neighbors_num = [(i, len(neighbor)) for i, neighbor in enumerate(neighbors)]
+    orders = sorted(neighbors_num, key=lambda num: num[1], reverse=True)
+    # use dp
+    def dfs(order_index, color, neighbor_colors, candidate_colors):
+        global best_colors
+        global baseline
+        global colors
+
+        if order_index >= node_count:  # won't happen internally
+            return
+        index = orders[order_index][0]
+        candidate_colors.add(color)
+        colors[index] = color
+
+        for neighbor in neighbors[index]:
+            neighbor_colors[neighbor][color] += 1
+            # print 'neighbor %d of index %d add color %d:' % (neighbor, index, color)
+
+        crnt_color_count = len(candidate_colors)
+        if order_index == node_count - 1:
+            if crnt_color_count < baseline:  # better
+                print 'Baseline: %d -> %d' % (baseline, crnt_color_count)
+                best_colors = copy.copy(colors)
+                baseline = crnt_color_count
+            return
+
+        next_index = orders[order_index + 1][0]
+        next_candidate_colors = candidate_colors.difference(neighbor_colors[next_index])
+        new_color = len(candidate_colors)
+        next_candidate_colors.add(new_color)
+
+        for next_color in next_candidate_colors:
+            if next_color == new_color and crnt_color_count >= baseline - 1:  # can't be better
+                continue
+
+            neighbors_ok = True
+            for neighbor in neighbors[next_index]:
+                if next_color not in neighbor_colors[neighbor] and len(neighbor_colors[neighbor]) >= baseline - 2:
+                    neighbors_ok = False
+                    break
+            if not neighbors_ok:  # neighbors not ok (4x improvement)
+                continue
+
+            dfs(order_index + 1, next_color, neighbor_colors, candidate_colors)
+
+            # clear next_index
+            for neighbor in neighbors[next_index]:
+                neighbor_colors[neighbor][next_color] -= 1
+                if neighbor_colors[neighbor][next_color] == 0: del neighbor_colors[neighbor][next_color]
+                # print 'neighbor %d of index %d remove color %d:' % (neighbor, next_index, next_color)
+            if next_color == new_color:
+                candidate_colors.remove(next_color)
+
+    dfs(0, 0, neighbor_colors, candidate_colors)
+
+    # check
+    for v1, v2 in edges:
+        if best_colors[v1] == best_colors[v2]:
+            print 'Error: colors of %s = colors of %s.' % (v1, v2)
 
     # prepare the solution in the specified output format
-    output_data = str(max(solution)+1) + ' ' + str(0) + '\n'
-    output_data += ' '.join(map(str, solution))
+    output_data = str(len(set(best_colors))) + ' ' + str(1) + '\n'
+    output_data += ' '.join(map(str, best_colors))
 
     return output_data
 
 
-class Vertex:
-    def  __init__(self, name):
-        self.name = name
-        self.adjacent = []
-        self.color = 0
-        self.degree = 0
-
-    def add_adjacent(self,v):
-        self.adjacent.append(v)
-        self.degree += 1
-        v.adjacent.append(self)
-        v.degree += 1
-
-    def update_color(self, color):
-        self.color = color
-
-    def __repr__(self):
-        return str(self.name) + " color " + str(self.color) +  " adjacents " + str([a.name for a in self.adjacent])
-
-    #nombre de couleurs différentes dans les sommets adjacents à v
-    def get_dsat(self):
-        return sum([x.color for x in self.adjacent])
-
-
-class Graph:
-    def __init__(self, node_count, edges):
-        self.vertices = [Vertex(i) for i in range(0,node_count)]
-        for e in edges:
-            self.vertices[e[0]].add_adjacent(self.vertices[e[1]])
-        # Ordonner les sommets par ordre décroissant de degré.
-        self.sorted_vertices = self.vertex_to_visit()
-
-    #3.Liste des sommets non coloré avec DSAT maximum (nombre de couleurs différentes dans les sommets adjacents à v).
-    # En cas d'égalité, choisir un sommet de degré maximal.
-    def vertex_to_visit(self):
-        self.sorted_vertices = sorted(self.vertices,key=lambda x: (x.get_dsat(),x.degree),reverse=True)
-        return [v for v in self.sorted_vertices if v.color == 0]
-
-    def output_result(self):
-        return [v.color-1 for v in self.vertices]
-
-def get_opt(node_count):
-    opt = {"50":6,"70":17,"100":15,"250":73,"500":12,"1000":88}
-
-    #print (opt.keys())
-    if str(node_count) in opt.keys():
-        return opt[str(node_count)]
-    else:
-        return node_count
-
-
-def objective_value(is_color,color_set):
-     return sum([sum(is_color[color]) * sum(is_color[color]) for color in color_set])
-
-
-#3.Choisir un sommet non coloré avec DSAT maximum (nombre de couleurs différentes dans les sommets adjacents à v).
-# En cas d'égalité, choisir un sommet de degré maximal.
-def choose_next_vertex(sorted_vertices):
-    return sorted_vertices[0]
-
-
-def color_vertex(v, sorted_vertices):
-    adjacent_vertices = v.adjacent
-    v.update_color(max(adjacent_vertices,key = lambda x:x.color).color + 1)
-
-
-def dsatur_solve(node_count,edges,nb_opt):
-    graph = Graph(node_count,edges)
-    # 1.Ordonner les sommets par ordre décroissant de degré.
-    sorted_vertices = graph.sorted_vertices
-
-    # 2.Colorer un des sommets de degré maximum avec la couleur 1.
-    #i = 0
-    #sorted_vertices[i].color(1)
-
-    to_visit = graph.vertex_to_visit()
-    # 5.Si tous les sommets sont colorés alors stop
-    while to_visit:
-        # 3.Choisir un sommet non coloré avec DSAT maximum (nombre de couleurs différentes dans les sommets adjacents à v).
-        # En cas d'égalité, choisir un sommet de degré maximal.
-        v = choose_next_vertex(to_visit)
-        # 4.Sinon colorer ce sommet par la plus petite couleur possible.
-        color_vertex(v,sorted_vertices)
-
-        to_visit = graph.vertex_to_visit()
-
-    return graph.output_result()
-
-
-def ls_solve(node_count,edges,opt):
-    graph = Graph(node_count,edges)
-    node_set = range(0,node_count)
-    color_set = range(0,get_opt(node_count))
-    root = graph.vertices[0]
-    color = 0
-    dfs(graph,root)
-    is_color =  [[0 for color in color_set] for node in node_set]
-    is_color[0][0] == 1
-    for node in node_set:
-        for color in color_set:
-            node * is_color[color][node]
-
-
-
-def dfs(graph,root):
-    visited = [False for i in graph.vertices]
-    visited[root] = True
-    for v in root.adjacents:
-        if not(visited[v]):
-            dfs(graph,v)
-
-def pulp_solve(node_count,edges,opt):
-    print ("opt " +  str(opt))
-    print("node_count " + str(node_count))
-    coloring = pulp.LpProblem("Color Model", pulp.LpMinimize)
-    color_set = range(0,opt + 5)
-    node_set = range(0,node_count)
-    is_color =  [[pulp.LpVariable("x_col" + str(c) + "_node" + str(n) , 0,1, 'Binary') for c in color_set] for n in node_set]
-    obj = pulp.LpVariable("objective",opt,opt+3,'Integer')
-    objective = pulp.LpAffineExpression(obj)
-    coloring.setObjective(objective)
-
-
-    for node in node_set:
-        for c in color_set:
-            coloring += c * is_color[node][c] <= obj
-        coloring += sum(is_color[node][c] for c in color_set) == 1
-    for c in color_set:
-        for e in edges:
-            coloring += is_color[e[0]][c] + is_color[e[1]][c] <= 1
-
-    # for n in node_set:
-    #     for c in color_set:
-    #         coloring += n * is_color[n][c] <= obj
-    #     coloring += sum(is_color[n][col] for col in color_set) == 1
-    # for c in color_set:
-    #     for e in edges:
-    #         coloring += is_color[e[0]][c] + is_color[e[1]][c] <= 1
-    #
-    # for c in color_set:
-    #     coloring += sum(is_color[v][c] for v in node_set) == 1
-
-    #coloring += is_color[0][0] == 1
-
-    #print(coloring)
-    coloring.solve(pulp.PULP_CBC_CMD(msg=3, maxSeconds=100, threads=5))
-
-    out = []
-    for n in node_set:
-        found = False
-        for c in color_set:
-            if is_color[n][c].value() > 0.1:
-                #print ("col" + str(color) + "node" + str(node))
-                out.append(c)
-                found = True
-        if not (found):
-            print str(n) + " not colored"
-            print [is_color[n][c].value() for c in color_set]
-        # print([is_color[c][n] for n in color_set])
-        # print([is_color[c][n].value() for n in color_set])
-    #print out
-    return out
-
-import sys
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
@@ -201,7 +123,10 @@ if __name__ == '__main__':
         input_data_file = open(file_location, 'r')
         input_data = ''.join(input_data_file.readlines())
         input_data_file.close()
+        time_start = time.time()
         print solve_it(input_data)
+        time_end = time.time()
+        print 'Time: %f s' % (time_end - time_start)
     else:
         print 'This test requires an input file.  Please select one from the data directory. (i.e. python solver.py ./data/gc_4_1)'
 

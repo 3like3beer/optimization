@@ -592,6 +592,7 @@ func test(alg string) {
 
 func main() {
     alg := "auto"
+    test(alg)
     nColors := -1
     if len(os.Args) > 2 {
         alg = os.Args[2]
@@ -600,6 +601,6 @@ func main() {
         nColors, _ = strconv.Atoi(os.Args[3])
     }
     os.Exit(solveFile(os.Args[1], alg, int32(nColors)))
-    //test(alg)
+    test(alg)
 
 }
