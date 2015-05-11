@@ -9,6 +9,7 @@ import pulp
 
 
 
+
 # !/usr/bin/python
 # -*- coding: utf-8 -*-
 
@@ -22,7 +23,7 @@ import gflags
 
 
 FLAGS = gflags.FLAGS
-gflags.DEFINE_boolean('light_propagation', False, 'Use light propagation')
+gflags.DEFINE_boolean('light_propagation', True, 'Use light propagation')
 
 Point = namedtuple("Point", ['id', 'x', 'y'])
 Segment = namedtuple("Segment", ['f', 't', 'id'])
@@ -245,7 +246,7 @@ def my_solver(points, nodeCount):
     def Distance(i, j):
         point1 = points[i]
         point2 = points[j]
-        return math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2)
+        return math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2) * 1000
 
     # Set a global parameter.
     param = pywrapcp.RoutingParameters()
@@ -262,7 +263,7 @@ def my_solver(points, nodeCount):
 
     parameters = pywrapcp.RoutingSearchParameters()
     # Setting first solution heuristic (cheapest addition).
-    parameters.first_solution = 'PathCheapestArc'
+    parameters.first_solution = 'Savings'
     # parameters.tabu_search = True
     # parameters.simulated_annealing = True
     # Disabling Large Neighborhood Search, comment out to activate it.
@@ -270,10 +271,14 @@ def my_solver(points, nodeCount):
     # parameters.time_limit = 60 * 6000
     parameters.no_lns = False
     parameters.no_tsp = False
+    parameters.no_tsplns = False
+    parameters.no_relocate_neighbors = False
     parameters.trace = True
     parameters.no_fullpathlns = False
     parameters.guided_local_search = True
-    parameters.solution_limit = 100
+    parameters.use_extended_swap_active = True
+    parameters.solution_limit = 282
+
     # routing.UpdateTimeLimit(60 * 6000)
 
     # Setting the cost function.
