@@ -10,6 +10,7 @@ import pulp
 
 
 
+
 # !/usr/bin/python
 # -*- coding: utf-8 -*-
 
@@ -264,7 +265,7 @@ def my_solver(points, nodeCount):
     parameters = pywrapcp.RoutingSearchParameters()
     # Setting first solution heuristic (cheapest addition).
     parameters.first_solution = 'Savings'
-    # parameters.tabu_search = True
+    parameters.tabu_search = True
     # parameters.simulated_annealing = True
     # Disabling Large Neighborhood Search, comment out to activate it.
     # parameters.lns_time_limit = 60 * 6000
@@ -277,7 +278,7 @@ def my_solver(points, nodeCount):
     parameters.no_fullpathlns = False
     parameters.guided_local_search = True
     parameters.use_extended_swap_active = True
-    parameters.solution_limit = 282
+    parameters.solution_limit = 300
 
     # routing.UpdateTimeLimit(60 * 6000)
 
