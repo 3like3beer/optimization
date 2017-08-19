@@ -66,7 +66,7 @@ def pulp_solve(items,capacity):
     knapsack.setObjective(objective)
     #knapsack += sum([items.value[i]*x[i] for i in items])
     knapsack += sum([i.weight*x[i.index] for i in items]) <= capacity -5
-    knapsack.solve(pulp.COIN_CMD())
+    knapsack.solve(pulp.PULP_CBC_CMD())
     taken = [int(i.value()) for i in x]
     value = sum([items[i].value*t for (i,t) in enumerate(taken)])
     weight = sum([items[i].weight*t  for (i,t) in enumerate(taken)])
@@ -246,7 +246,7 @@ def knapsack(items, maxweight):
             taken[i-1]=1
             j -= items[i - 1][1]
     result.reverse()
-    return bestvalue(len(items), maxweight), result,taken
+    return bestvalue(len(items), maxweight), result #,taken
     
 def dp_algo2(items,capacity):
     new_items= [(v.value,v.weight) for v in items]    
@@ -294,8 +294,9 @@ def dp_recurse(items,capacity,taken,value,weight):
         return value,weight,taken
     else:
         item = items.pop()
+        value_if_not_selected = 0
         if item.weight < capacity:
-            value_if_selected = item.value + dp_algo(items,capacity-item.weight)    
+            value_if_selected = item.value + dp_algo(items,capacity-item.weight)
             value_if_not_selected = dp_recurse(items,capacity)
             if value_if_not_selected>value_if_selected:
                 taken[item.index]=0
