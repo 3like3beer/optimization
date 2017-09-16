@@ -159,7 +159,7 @@ def choose_with_rect(r, segments, points):
             if in_rect(r, points[s[0]]) or in_rect(r, points[s[1]]):
                 result.append(s)
         r = Rect(r.x0, r.y0 - 1000, r.x1, r.y1 + 1000)
-    print len(result)
+    print (len(result))
     return result
 
 
@@ -171,7 +171,7 @@ def insert_solution(solution, partial, distances):
     points = distances._points
 
     rect = containing_rect([points[i] for i in partial])
-    print rect
+    print (rect)
 
     segment_solution = segmentize(solution)
     filtered_solution = choose_with_rect(rect, segment_solution, points)
@@ -198,7 +198,7 @@ def insert_solution(solution, partial, distances):
 
 def solve_and_save(cluster, filename):
     l = len(cluster)
-    print filename, l
+    #print filename, l
     if l > 0:
         (objective, solution) = solve_routing(cluster, l)
         f = open(filename, 'w')
@@ -220,7 +220,7 @@ def clusterize_and_save(points):
 
 
 def read_partial(name):
-    print name
+    #print name
     return [int(line.strip()) for line in open(name)]
 
 
@@ -285,7 +285,7 @@ def my_solver(points, nodeCount):
     assignment = routing.SolveWithParameters(parameters, None)
     if assignment:
         # Solution cost.
-        print assignment.ObjectiveValue()
+        #print assignment.ObjectiveValue()
         # Inspect solution.
         # Only one route here; otherwise iterate from 0 to routing.vehicles() - 1
         route_number = 0
@@ -297,10 +297,10 @@ def my_solver(points, nodeCount):
             solution.append(int(node))
             node = assignment.Value(routing.NextVar(node))
         route += '0'
-        print route
-        print solution
+        #print route
+        #print solution
     else:
-        print 'No solution found.'
+        print ('No solution found.')
     return solution
 
 
@@ -340,7 +340,7 @@ def solve_routing(points, nodeCount):
     node = routing.Start(0)
     while True:
         solution.append(node)
-        print solution
+        print (solution)
         node = assignment.Value(routing.NextVar(node))
 
     return (assignment.ObjectiveValue(), solution)
@@ -353,12 +353,12 @@ def solve_mip(points, nodeCount):
     # CBC_MIXED_INTEGER_PROGRAMMING
     # SCIP_MIXED_INTEGER_PROGRAMMING
 
-    print "creating variables"
+    print ("creating variables")
     nodes = range(nodeCount)
 
     x = [[solver.BoolVar('x%d_%d' % (i, j)) for j in nodes] for i in nodes]
 
-    print "enter/exit just once"
+    print ("enter/exit just once")
     for i in nodes:
         solver.Add(x[i][i] == 0)
         row = x[i]
@@ -380,13 +380,13 @@ def solve_mip(points, nodeCount):
     # solution and search
     #
 
-    print "starting search"
+    print ("starting search")
 
     solver.SetTimeLimit(1)
     result_status = solver.Solve()
     assert result_status == pywraplp.Solver.OPTIMAL
-    print "WallTime:", solver.WallTime()
-    print [[x[i][j].SolutionValue() for j in nodes] for i in nodes]
+    print ("WallTime:", solver.WallTime())
+    print ([[x[i][j].SolutionValue() for j in nodes] for i in nodes])
 
     solution = []
     current = 0
@@ -405,7 +405,7 @@ def solve_mip(points, nodeCount):
 def solve_it(input_data):
     # Modify this code to run your optimization algorithm
 
-    print "reading file"
+    print ("reading file")
 
     # parse the input
     lines = input_data.split('\n')
@@ -414,7 +414,7 @@ def solve_it(input_data):
 
     points = []
 
-    print "converting"
+    print ("converting")
     _id = 0
     for line in lines[1:-1]:
         parts = line.split()
@@ -424,10 +424,10 @@ def solve_it(input_data):
 
     # build a trivial solution
     # visit the nodes in the order they appear in the file
-    print "calling solver"
+    print ("calling solver")
     solution = my_solver(points, nodeCount)
     obj = tour_length(nodeCount, points, solution)
-    print obj
+    print (obj)
 
     # prepare the solution in the specified output format
     output_data = str(obj) + ' ' + str(0) + '\n'
@@ -612,7 +612,7 @@ def ls_solution_given_init(node_count, points, solution):
             current_value, solution = new_value, solution2
 
         if i % (iter_max / 10) == 0:
-            print current_value
+            print (current_value)
             # print solution
 
     for i in range(0,len(cx_hull)-2):
